@@ -1,0 +1,20 @@
+{
+    "files.associations": {
+        "string.h": "c",
+        "stdlib.h": "c",
+        "audio_device.h": "c",
+        "stdint.h": "c",
+        "tone.h": "c",
+        "stdio.h": "c",
+        "math.h": "c",
+        "toneblock.h": "c",
+        "qsynth.h": "c",
+        "adsr.h": "c",
+        "core.h": "c",
+        "note_table.h": "c",
+        "instruments_core.h": "c",
+        "type_traits": "c",
+        "instruments.h": "c",
+        "windows.h": "c"
+    }
+}
