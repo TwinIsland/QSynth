@@ -15,6 +15,7 @@
         "instruments_core.h": "c",
         "type_traits": "c",
         "instruments.h": "c",
-        "windows.h": "c"
+        "windows.h": "c",
+        "typeinfo": "c"
     }
 }

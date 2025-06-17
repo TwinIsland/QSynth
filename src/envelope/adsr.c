@@ -2,17 +2,16 @@
 #include <math.h>
 #include <stdio.h>
 
-void adsr_init(ADSREnvelope *env, const EnvelopeCfg *cfg, double duration)
+void adsr_init(ADSREnvelope *env, const EnvelopeCfg *cfg, int duration_ms)
 {
-    env->attack_time = duration * cfg->attack_ratio;
-
-    env->decay_time = duration * cfg->decay_ratio;
-    env->sustain_level = cfg->sustain_level;
-    env->release_time = duration * cfg->release_ratio;
-
-    env->sustain_time = duration - (env->attack_time + env->decay_time + env->release_time);
-
     adsr_reset(env);
+
+    env->attack_time = duration_ms * cfg->attack_ratio;
+    env->decay_time = duration_ms * cfg->decay_ratio;
+    env->release_time = duration_ms * cfg->release_ratio;
+    env->sustain_time = duration_ms - (env->attack_time + env->decay_time + env->release_time);
+
+    env->sustain_level = cfg->sustain_level;
 }
 
 void adsr_reset(ADSREnvelope *env)
@@ -30,13 +29,6 @@ void adsr_note_on(ADSREnvelope *env)
     env->note_released = 0;
 }
 
-void adsr_note_off(ADSREnvelope *env)
-{
-    env->note_released = 1;
-    env->state = ADSR_RELEASE;
-    env->phase = 0.0;
-}
-
 double adsr_process(ADSREnvelope *env, double delta_time)
 {
     if (env->state == ADSR_IDLE)
@@ -44,12 +36,12 @@ double adsr_process(ADSREnvelope *env, double delta_time)
         return 0.0;
     }
 
-    env->phase += delta_time;
+    env->phase += delta_time * 1000.0; // Convert to milliseconds
 
     switch (env->state)
     {
     case ADSR_ATTACK:
-        if (env->phase < env->attack_time)
+        if (env->attack_time > 0 && env->phase < env->attack_time)
         {
             env->current_level = env->phase / env->attack_time;
         }
@@ -62,7 +54,7 @@ double adsr_process(ADSREnvelope *env, double delta_time)
         break;
 
     case ADSR_DECAY:
-        if (env->phase < env->decay_time)
+        if (env->decay_time > 0 && env->phase < env->decay_time)
         {
             double decay_progress = env->phase / env->decay_time;
             env->current_level = 1.0 - decay_progress * (1.0 - env->sustain_level);
@@ -77,18 +69,23 @@ double adsr_process(ADSREnvelope *env, double delta_time)
 
     case ADSR_SUSTAIN:
         env->current_level = env->sustain_level;
-        if (env->phase >= env->sustain_time)
+        if (env->sustain_time > 0 && env->phase >= env->sustain_time)
         {
             env->state = ADSR_RELEASE;
             env->phase = 0.0;
-        } 
+        }
+        else if (env->sustain_time <= 0)
+        {
+            env->state = ADSR_RELEASE;
+            env->phase = 0.0;
+        }
         break;
 
     case ADSR_RELEASE:
-        if (env->phase < env->release_time)
+        if (env->release_time > 0 && env->phase < env->release_time)
         {
-            env->current_level = env->sustain_level *
-                                 exp(-5.0 * env->phase / env->sustain_level);
+            double release_progress = env->phase / env->release_time;
+            env->current_level = env->sustain_level * (1.0 - release_progress);
         }
         else
         {
@@ -103,11 +100,13 @@ double adsr_process(ADSREnvelope *env, double delta_time)
         break;
     }
 
-    if (env->current_level < 0.001)
-    {
-        env->current_level = 0.0;
-        env->state = ADSR_IDLE;
-    }
+    // clamp to prevent negative values
+    if (env->current_level < 0.001 && env->state == ADSR_RELEASE)     
+    {         
+        env->current_level = 0.0;         
+        env->state = ADSR_IDLE;     
+    }      
+
 
     return env->current_level;
 }

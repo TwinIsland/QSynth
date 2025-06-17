@@ -7,12 +7,12 @@
 
 typedef struct
 {
-    const Tone *tone;      // What to play
-    double duration; // Note length
-    double velocity; // Playing strength (0.0-1.0)
+    const Tone *tone; // What to play
+    int duration_ms;  // Note length
+    double velocity;  // Playing strength (0.0-1.0)
     double frequency;
     double amplitude;
-    double pan; 
+    double pan;
 
     // state
     bool active;

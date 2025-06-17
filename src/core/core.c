@@ -5,8 +5,8 @@
 #include "qsynth.h"
 #include "core.h"
 #include "instruments.h"
-#include "../assets/instruments_core.h"
 
+#include "../assets/instruments_core.h"
 #include "../utils/note_table.h"
 
 static QSynthError g_last_error = QSYNTH_ERROR_NONE;
@@ -19,71 +19,81 @@ static int set_error(AudioError error)
 
 void _audio_callback(void *user_data, int16_t *output_buffer, int frame_count)
 {
+    // printf("called\n");
     Synthesizer *synth = (Synthesizer *)user_data;
 
     if (!synth) {
         return;
     }
-    
+
     int current_buffer_idx = synth->buffer_state & BUF_AVAILABLE_IDX_MASK;
-    
-    memcpy(output_buffer, synth->audioBuffers[current_buffer_idx], 
+
+    memcpy(output_buffer, synth->audioBuffers[current_buffer_idx],
            frame_count * 2 * sizeof(int16_t));
-    
+
     synth->buffer_state ^= BUF_AVAILABLE_IDX_MASK;
-    
+
     _process_voice_buffer(synth);
-    
+
     synth->samples_played += frame_count;
 }
 
-void _process_voice_buffer(Synthesizer* synth)
+void _process_voice_buffer(Synthesizer *synth)
 {
-    if (!synth) return;
-    
+    if (!synth)
+        return;
+
     int buffer_to_fill = (synth->buffer_state & BUF_AVAILABLE_IDX_MASK) ^ 1;
-    
+
     double delta_time = 1.0 / synth->device.config.sample_rate;
     int frame_count = synth->device.config.buffer_size;
-    
-    int active_voices = 0;
-    
-    for (int i = 0; i < frame_count; i++) {
+
+    // int active_voices = 0;
+
+    for (int i = 0; i < frame_count; i++)
+    {
         double left_mix = 0.0, right_mix = 0.0;
-        
+
         // process all voices for this sample
-        for (int v = 0; v < MAX_VOICE_ACTIVE; v++) {
+        for (int v = 0; v < MAX_VOICE_ACTIVE; v++)
+        {
             Voice *voice = &synth->voices[v];
-            if (!voice->active) continue;
-            
-            if (i == 0) active_voices++; // Count only on first sample
-            
+            if (!voice->active)
+                continue;
+
+            // if (i == 0)
+            //     active_voices++; 
+
             double sample = voice_step(voice, delta_time);
-            
             // apply panning
             double left_gain = 1.0 - voice->pan;
             double right_gain = voice->pan;
-            
+
             left_mix += sample * left_gain;
             right_mix += sample * right_gain;
         }
-        
+
         // apply master volume and clamp
         left_mix *= synth->master_volume;
         right_mix *= synth->master_volume;
-        
-        if (left_mix > 1.0) left_mix = 1.0;
-        if (left_mix < -1.0) left_mix = -1.0;
-        if (right_mix > 1.0) right_mix = 1.0;
-        if (right_mix < -1.0) right_mix = -1.0;
-        
+
+        if (left_mix > 1.0)
+            left_mix = 1.0;
+        if (left_mix < -1.0)
+            left_mix = -1.0;
+        if (right_mix > 1.0)
+            right_mix = 1.0;
+        if (right_mix < -1.0)
+            right_mix = -1.0;
+
         synth->audioBuffers[buffer_to_fill][i * 2] = (int16_t)(left_mix * 32767);
         synth->audioBuffers[buffer_to_fill][i * 2 + 1] = (int16_t)(right_mix * 32767);
     }
-    
-    if (active_voices > 0) {
-        printf("Processed buffer %d with %d active voices\n", buffer_to_fill, active_voices);
-    }
+
+    // if (active_voices > 0)
+    // {
+    //     printf("Processed buffer %d with %d active voices\n", buffer_to_fill, active_voices);
+    // }
 }
 
 bool synth_init(Synthesizer **synth_ptr, double sample_rate, int channels)
@@ -106,18 +116,20 @@ bool synth_init(Synthesizer **synth_ptr, double sample_rate, int channels)
         return false;
     };
 
-    // Set the output parameter FIRST
     *synth_ptr = synth;
 
-    // init audio device - NOW user_data points to the actual synth
+    // init audio device
     AudioConfig config = {
         .sample_rate = sample_rate,
         .channels = channels,
         .buffer_size = AUDIO_BUFFER_SIZE,
-        .user_data = synth,  // FIXED: was *synth_ptr (which was uninitialized)
+        .user_data = synth,
         .callback = _audio_callback,
     };
 
+    // init audio device
+    synth->device = (AudioDevice){0};
+    
     if (!audio_device_init(&synth->device, &config))
     {
         printf("Failed to init device: %s\n",
@@ -129,7 +141,7 @@ bool synth_init(Synthesizer **synth_ptr, double sample_rate, int channels)
 
     synth->buffer_state = 0;
 
-    // Allocate audio buffers
+    // allocate audio buffers
     for (int i = 0; i < 2; i++)
     {
         synth->audioBuffers[i] = (short *)calloc(AUDIO_BUFFER_SIZE * channels, sizeof(short));
@@ -154,21 +166,18 @@ bool synth_init(Synthesizer **synth_ptr, double sample_rate, int channels)
     synth->device.is_playing = false;
     synth->samples_played = 0;
 
-
     printf("QSynth initialized: %.1fHz, %d channels\n", sample_rate, channels);
     return true;
 }
-
 
 void synth_cleanup(Synthesizer *synth)
 {
     if (!synth)
         return;
-    synth_stop(synth);
 
     audio_device_cleanup(&synth->device);
 
-    // Free audio buffers
+    // free audio buffers
     for (int i = 0; i < 2; i++)
     {
         if (synth->audioBuffers[i])
@@ -191,8 +200,6 @@ bool synth_start(Synthesizer *synth)
         return false;
     }
 
-    synth->device.is_playing = true;
-
     printf("Audio playback started\n");
     return true;
 }
@@ -201,6 +208,8 @@ void synth_stop(Synthesizer *synth)
 {
     audio_device_stop(&synth->device);
     synth->device.is_playing = false;
+
+    printf("Audio playback ended\n");
 }
 
 int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteCfg *cfg)
@@ -216,8 +225,7 @@ int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteCfg *cfg)
         set_error(QSYNTH_ERROR_NOTECFG);
         return -1;
     }
-
-    // Find free voice
+    // find free voice
     for (int i = 0; i < MAX_VOICE_ACTIVE; i++)
     {
         if (!synth->voices[i].active)
@@ -231,18 +239,19 @@ int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteCfg *cfg)
                 set_error(QSYNTH_ERROR_NOTECFG);
                 return -1;
             }
-            
-            // FIXED: Configure the existing voice in the array, don't create local copy
+
             Voice *voice = &synth->voices[i];
-            voice->duration = cfg->duration;
+            voice_reset(voice);
+
+            voice->duration_ms = cfg->duration_ms;
             voice->tone = &sig->tone;
             voice->velocity = cfg->velocity;
             voice->frequency = frequency;
             voice->amplitude = cfg->amplitude;
-            voice->pan = cfg->pan;  
-            
+            voice->pan = cfg->pan;
+
             voice_start(voice, synth->device.config.sample_rate);
-            
+
             printf("Started voice %d: freq=%.2f, amp=%.2f\n", i, frequency, cfg->amplitude);
             return i;
         }

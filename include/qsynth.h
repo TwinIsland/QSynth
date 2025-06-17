@@ -13,7 +13,7 @@ typedef struct Synthesizer Synthesizer;
 
 typedef struct {
     int midi_note;
-    double duration;
+    int duration_ms;
     double amplitude;
     double velocity;
     double pan;

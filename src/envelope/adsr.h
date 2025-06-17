@@ -48,9 +48,8 @@ typedef struct
 } ADSREnvelope;
 
 // Envelope functions
-void adsr_init(ADSREnvelope *env, const EnvelopeCfg *cfg, double duration);
+void adsr_init(ADSREnvelope *env, const EnvelopeCfg *cfg, int duration_ms);
 void adsr_reset(ADSREnvelope *env);
 void adsr_note_on(ADSREnvelope *env);
-void adsr_note_off(ADSREnvelope *env);
 double adsr_process(ADSREnvelope *env, double delta_time);
 int adsr_is_active(const ADSREnvelope *env);

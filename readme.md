@@ -1,7 +1,5 @@
 # QSynth
 
-> ⚠️ **Development in Progress** - Not ready for production use
-
 A high-performance multi-layered audio synthesizer written in C, featuring real-time audio processing with advanced instrument design capabilities.
 
 ## ✨ Features
@@ -178,10 +176,6 @@ QSynth/
 └── examples/
     └── basic_synth.c       # Usage examples
 ```
-
-## 🤝 Contributing
-
-Contributions welcome! Please check the issues page for current development priorities.
 
 ## 📄 License
 

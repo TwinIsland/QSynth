@@ -23,6 +23,7 @@ typedef struct
 // Audio callback - generates sine wave
 void sine_wave_callback(void *user_data, int16_t *output_buffer, int frame_count)
 {
+    printf("called\n");
     SineWaveData *sine_data = (SineWaveData *)user_data;
 
     for (int i = 0; i < frame_count; i++)
