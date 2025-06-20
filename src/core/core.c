@@ -17,9 +17,9 @@ static int set_error(AudioError error)
     return 0;
 }
 
-void _audio_callback(void *user_data, int16_t *output_buffer, int frame_count)
+static void audio_callback(void *user_data, int16_t *output_buffer, int frame_count)
 {
-    // printf("called\n");
+    // in our case, frame_count*channel is always AUDIO_BUFFER_SIZE
     Synthesizer *synth = (Synthesizer *)user_data;
 
     if (!synth) {
@@ -29,10 +29,10 @@ void _audio_callback(void *user_data, int16_t *output_buffer, int frame_count)
     int current_buffer_idx = synth->buffer_state & BUF_AVAILABLE_IDX_MASK;
 
     memcpy(output_buffer, synth->audioBuffers[current_buffer_idx],
-           frame_count * 2 * sizeof(int16_t));
+           synth->device.config.buffer_size * 2 * sizeof(short));
 
     synth->buffer_state ^= BUF_AVAILABLE_IDX_MASK;
-
+    
     _process_voice_buffer(synth);
 
     synth->samples_played += frame_count;
@@ -61,9 +61,6 @@ void _process_voice_buffer(Synthesizer *synth)
             if (!voice->active)
                 continue;
 
-            // if (i == 0)
-            //     active_voices++; 
-
             double sample = voice_step(voice, delta_time);
             // apply panning
             double left_gain = 1.0 - voice->pan;
@@ -89,11 +86,6 @@ void _process_voice_buffer(Synthesizer *synth)
         synth->audioBuffers[buffer_to_fill][i * 2] = (int16_t)(left_mix * 32767);
         synth->audioBuffers[buffer_to_fill][i * 2 + 1] = (int16_t)(right_mix * 32767);
     }
-
-    // if (active_voices > 0)
-    // {
-    //     printf("Processed buffer %d with %d active voices\n", buffer_to_fill, active_voices);
-    // }
 }
 
 bool synth_init(Synthesizer **synth_ptr, double sample_rate, int channels)
@@ -124,7 +116,7 @@ bool synth_init(Synthesizer **synth_ptr, double sample_rate, int channels)
         .channels = channels,
         .buffer_size = AUDIO_BUFFER_SIZE,
         .user_data = synth,
-        .callback = _audio_callback,
+        .callback = audio_callback,
     };
 
     // init audio device

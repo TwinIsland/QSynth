@@ -9,10 +9,10 @@ static const InstrumentSignature instrument_signatures[INST_COUNT] = {
     [INST_LEAD_SQUARE] = {
         .tone = {
             .layers = {
-                {.base_wave = WAVE_SQUARE},
-                {.base_wave = WAVE_SAWTOOTH},
-                {.base_wave = WAVE_SQUARE},
-                {.base_wave = WAVE_TRIANGLE},
+                {.type = WAVE_SQUARE},
+                {.type = WAVE_SAWTOOTH},
+                {.type = WAVE_SQUARE},
+                {.type = WAVE_TRIANGLE},
             },
             .detune = {0.0, 0.03, -12.0, 12.0},
             .mix_levels = {0.5, 0.3, 0.15, 0.05},
@@ -27,9 +27,9 @@ static const InstrumentSignature instrument_signatures[INST_COUNT] = {
     // 1. WARM ANALOG BASS
     [INST_WARM_BASS] = {.tone = {
                             .layers = {
-                                {.base_wave = WAVE_SAWTOOTH},
-                                {.base_wave = WAVE_SQUARE},
-                                {.base_wave = WAVE_SINE},
+                                {.type = WAVE_SAWTOOTH},
+                                {.type = WAVE_SQUARE},
+                                {.type = WAVE_SINE},
                             },
                             .detune = {0.0, -12.0, -24.0},
                             .mix_levels = {0.6, 0.25, 0.15},
@@ -44,10 +44,10 @@ static const InstrumentSignature instrument_signatures[INST_COUNT] = {
     // 2. ETHEREAL PAD
     [INST_ETHEREAL_PAD] = {.tone = {
                                .layers = {
-                                   {.base_wave = WAVE_SINE},
-                                   {.base_wave = WAVE_TRIANGLE},
-                                   {.base_wave = WAVE_SINE},
-                                   {.base_wave = WAVE_TRIANGLE},
+                                   {.type = WAVE_SINE},
+                                   {.type = WAVE_TRIANGLE},
+                                   {.type = WAVE_SINE},
+                                   {.type = WAVE_TRIANGLE},
                                },
                                .detune = {0.0, 7.0, 12.0, 19.0},
                                .mix_levels = {0.4, 0.3, 0.2, 0.1},
@@ -62,9 +62,9 @@ static const InstrumentSignature instrument_signatures[INST_COUNT] = {
     // 3. METALLIC PLUCK
     [INST_METALLIC_PLUCK] = {.tone = {
                                  .layers = {
-                                     {.base_wave = WAVE_SAWTOOTH},
-                                     {.base_wave = WAVE_SQUARE},
-                                     {.base_wave = WAVE_TRIANGLE},
+                                     {.type = WAVE_SAWTOOTH},
+                                     {.type = WAVE_SQUARE},
+                                     {.type = WAVE_TRIANGLE},
                                  },
                                  .detune = {0.0, 0.03, -0.03},
                                  .mix_levels = {0.5, 0.3, 0.2},
@@ -79,8 +79,8 @@ static const InstrumentSignature instrument_signatures[INST_COUNT] = {
     // 4. WOBBLE BASS
     [INST_WOBBLE_BASS] = {.tone = {
                               .layers = {
-                                  {.base_wave = WAVE_SAWTOOTH},
-                                  {.base_wave = WAVE_SQUARE},
+                                  {.type = WAVE_SAWTOOTH},
+                                  {.type = WAVE_SQUARE},
                               },
                               .detune = {0.0, 0.07},
                               .mix_levels = {0.7, 0.3},
@@ -94,10 +94,10 @@ static const InstrumentSignature instrument_signatures[INST_COUNT] = {
 
     // 5. BELL LEAD
     [INST_BELL_LEAD] = {.tone = {.layers = {
-                                     {.base_wave = WAVE_SINE},
-                                     {.base_wave = WAVE_SINE},
-                                     {.base_wave = WAVE_SINE},
-                                     {.base_wave = WAVE_TRIANGLE},
+                                     {.type = WAVE_SINE},
+                                     {.type = WAVE_SINE},
+                                     {.type = WAVE_SINE},
+                                     {.type = WAVE_TRIANGLE},
                                  },
                                  .detune = {0.0, 12.0, 19.0, 24.0},
                                  .mix_levels = {0.6, 0.3, 0.2, 0.1},
@@ -111,9 +111,9 @@ static const InstrumentSignature instrument_signatures[INST_COUNT] = {
     // 6. DEEP DRONE
     [INST_DEEP_DRONE] = {.tone = {
                              .layers = {
-                                 {.base_wave = WAVE_SINE},
-                                 {.base_wave = WAVE_TRIANGLE},
-                                 {.base_wave = WAVE_SAWTOOTH},
+                                 {.type = WAVE_SINE},
+                                 {.type = WAVE_TRIANGLE},
+                                 {.type = WAVE_SAWTOOTH},
                              },
                              .detune = {-12.0, -24.0, -12.02},
                              .mix_levels = {0.4, 0.4, 0.2},
@@ -165,11 +165,11 @@ void instrument_print_all(void)
             int layer_count = 0;
             for (int j = 0; j < MAX_TONE_LAYERS; j++)
             {
-                if (inst->tone.layers[j].base_wave.type != WAVE_NONE)
+                if (inst->tone.layers[j].type != WAVE_NONE)
                 {
                     layer_count++;
                     const char *wave_name = "Unknown";
-                    switch (inst->tone.layers[j].base_wave.type)
+                    switch (inst->tone.layers[j].type)
                     {
                     case WAVE_SINE:
                         wave_name = "Sine";
@@ -189,7 +189,7 @@ void instrument_print_all(void)
                     }
                     printf("%s", wave_name);
                     if (j < MAX_TONE_LAYERS - 1 &&
-                        inst->tone.layers[j + 1].base_wave.type != WAVE_NONE)
+                        inst->tone.layers[j + 1].type != WAVE_NONE)
                         printf(", ");
                 }
             }
@@ -337,10 +337,10 @@ void instrument_print_details(InstrumentType type)
     printf("OSCILLATOR LAYERS:\n");
     for (int i = 0; i < MAX_TONE_LAYERS; i++)
     {
-        if (inst->tone.layers[i].base_wave.type != WAVE_NONE)
+        if (inst->tone.layers[i].type != WAVE_NONE)
         {
             const char *wave_name = "Unknown";
-            switch (inst->tone.layers[i].base_wave.type)
+            switch (inst->tone.layers[i].type)
             {
             case WAVE_NONE:
                 wave_name = "NONE";

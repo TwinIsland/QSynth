@@ -58,7 +58,7 @@ double voice_step(Voice *voice, double delta_time)
                                    pow(2.0, voice->tone->detune[i] / 12.0);
 
         double layer_sample = generate_waveform(
-            voice->tone->layers[i].base_wave.type,
+            voice->tone->layers[i].type,
             voice->phases[i] + voice->tone->phase_diff[i]);
 
         sample_mixed += layer_sample * voice->tone->mix_levels[i];
