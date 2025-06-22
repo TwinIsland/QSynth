@@ -7,14 +7,16 @@
 typedef struct Synthesizer Synthesizer;
 
 #define MAX_TONE_LAYERS 4
-#define AUDIO_BUFFER_SIZE 4410
+#define AUDIO_BUFFER_SIZE 4410 // frame count, 4410 frames = 100ms at 44100Hz
 
-#define VOICE_BUFFER_SIZE 1024
-#define VOICE_BUFFER_REFILL_THRESHOLD 0.5
-#define MAX_VOICE_ACTIVE 7
+#define VOICE_BUFFER_SIZE 4096            // Keep this (92ms buffer)
+#define VOICE_BUFFER_REFILL_THRESHOLD 0.6 // Refill more aggressively
+#define REFILL_CHUNK_SIZE 512             // MUCH smaller chunks
 
+#define MAX_VOICE_ACTIVE 18
 
-typedef struct {
+typedef struct
+{
     int midi_note;
     int duration_ms;
     double amplitude;
@@ -22,7 +24,8 @@ typedef struct {
     double pan;
 } NoteCfg;
 
-typedef enum {
+typedef enum
+{
     QSYNTH_ERROR_NONE = 0,
     QSYNTH_ERROR_MEMALLOC,
     QSYNTH_ERROR_DEVICE,
@@ -33,19 +36,22 @@ typedef enum {
 } QSynthError;
 
 // qsynth init/deinit
-bool synth_init(Synthesizer** synth_ptr, double sample_rate, int channels);
-void synth_cleanup(Synthesizer* synth);
+bool synth_init(Synthesizer **synth_ptr, double sample_rate, int channels);
+void synth_cleanup(Synthesizer *synth);
 
 // qsynth streaming
-bool synth_start(Synthesizer* synth);
-void synth_stop(Synthesizer* synth);
+bool synth_start(Synthesizer *synth);
+void synth_stop(Synthesizer *synth);
 
 // qsynth basic sound interface
-int synth_play_note(Synthesizer* synth, InstrumentType instrument, NoteCfg *cfg);
+int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteCfg *cfg);
 
 // qsynth global setting
 int synth_set_master_volume(Synthesizer *synth, double volume);
 
 // qsynth error handling
 QSynthError synth_get_last_error();
-const char* synth_get_error_string(QSynthError error);
+const char *synth_get_error_string(QSynthError error);
+
+// qsynth static data
+void synth_print_stat(Synthesizer *synth);
