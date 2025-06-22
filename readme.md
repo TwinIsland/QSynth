@@ -67,7 +67,7 @@ int main() {
         .pan = 0.5              // Center pan
     };
     
-    synth_play_note(synth, INSTRUMENT_PIANO, &note);
+    synth_play_note(synth, INST_WARM_BASS, &note);
     
     // Wait for note to finish
     Sleep(1500);
@@ -223,7 +223,7 @@ Stops audio processing and playback.
 #### `int synth_play_note(Synthesizer* synth, InstrumentType instrument, NoteCfg *cfg)`
 Plays a musical note with the specified instrument and configuration.
 - **synth**: Synthesizer instance
-- **instrument**: Instrument type (e.g., `INSTRUMENT_PIANO`, `INSTRUMENT_ORGAN`)
+- **instrument**: Instrument type (e.g., `INST_LEAD_SQUARE`, `INST_WARM_BASS`, you can find all available instruments in `assets/instruments.h`)
 - **cfg**: Note configuration (pitch, duration, volume, etc.)
 - **Returns**: Voice ID on success, negative value on error
 
