@@ -6,7 +6,8 @@
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/device",
                 "${workspaceFolder}/include",
-                "${workspaceFolder}/assets"
+                "${workspaceFolder}/assets",
+                "${workspaceFolder}/pthread"
             ],
             "defines": [
                 "_DEBUG",

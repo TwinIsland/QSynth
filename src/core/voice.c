@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include <math.h>
+#include <stdlib.h>
 
 #include "voice.h"
 
 #include "../envelope/adsr.h"
 
-void voice_reset(Voice *voice)
+void voice_init(Voice *voice)
 {
     voice->active = false;
     voice->duration_ms = 0;
@@ -14,6 +15,7 @@ void voice_reset(Voice *voice)
     voice->velocity = 0;
     voice->_sample_rate = 0;
     voice->amplitude = 0;
+    voice->stream_buf = NULL;
 
     for (int i = 0; i < MAX_TONE_LAYERS; ++i)
     {
@@ -27,6 +29,10 @@ void voice_start(Voice *voice, double sample_rate)
     biquad_init(&voice->lfilter, &voice->tone->filter_opt, sample_rate);
     voice->_sample_rate = sample_rate;
     voice->active = true;
+
+    // init stream buffer
+    voice->stream_buf = calloc(VOICE_BUFFER_SIZE, sizeof(int8_t));
+    Stream_init(&voice->streamer, voice->stream_buf, VOICE_BUFFER_SIZE);
 
     adsr_note_on(&voice->lenvelope);
     biquad_reset(&voice->lfilter);
@@ -83,4 +89,13 @@ double voice_step(Voice *voice, double delta_time)
     }
 
     return sample_mixed;
+}
+
+void voice_cleanup(Voice *voice)
+{
+    if (voice->stream_buf)
+    {
+        free(voice->stream_buf);
+        voice->stream_buf = NULL;
+    }
 }

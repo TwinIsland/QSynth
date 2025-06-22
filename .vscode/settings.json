@@ -16,6 +16,9 @@
         "type_traits": "c",
         "instruments.h": "c",
         "windows.h": "c",
-        "typeinfo": "c"
+        "typeinfo": "c",
+        "streambuffer.h": "c",
+        "pthread.h": "c",
+        "unistd.h": "c"
     }
 }

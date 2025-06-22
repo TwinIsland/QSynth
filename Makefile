@@ -1,1 +1,0 @@
-# gcc -Wall -Wextra -std=c99 -O2 -Iinclude -Idevice -Iassets .\device\winaudio.c -lwinmm ./src/**/*.c .\examples\basic_synth.c -o .\build\basic_synth.exe;.\build\basic_synth.exe

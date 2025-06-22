@@ -3,6 +3,7 @@
 #include <stdbool.h>
 
 #include "tone.h"
+#include "../stream/StreamBuffer.h"
 #include "../envelope/adsr.h"
 
 typedef struct
@@ -22,10 +23,15 @@ typedef struct
     // lefted filter/envelope
     BiquadFilter lfilter;
     ADSREnvelope lenvelope;
+
+    // streaming state
+    uint8_t *stream_buf;
+    StreamBuffer streamer; // buffer for streaming audio
 } Voice;
 
 // void voice_init(Voice *voice, double sample_rate);
-void voice_reset(Voice *voice);
+void voice_init(Voice *voice);
 
 void voice_start(Voice *voice, double sample_rate);
 double voice_step(Voice *voice, double delta_time);
+void voice_cleanup(Voice *voice);

@@ -8,6 +8,9 @@ typedef struct Synthesizer Synthesizer;
 
 #define MAX_TONE_LAYERS 4
 #define AUDIO_BUFFER_SIZE 4410
+
+#define VOICE_BUFFER_SIZE 1024
+#define VOICE_BUFFER_REFILL_THRESHOLD 0.5
 #define MAX_VOICE_ACTIVE 7
 
 
