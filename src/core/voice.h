@@ -2,8 +2,13 @@
 
 #include <stdbool.h>
 
+#ifdef _WIN32
+#define _TIMESPEC_DEFINED
+#endif
+#include "pthread.h"
+
 #include "tone.h"
-#include "../stream/StreamBuffer.h"
+#include "../stream/stream.h"
 #include "../envelope/adsr.h"
 
 typedef struct
@@ -25,8 +30,8 @@ typedef struct
     ADSREnvelope lenvelope;
 
     // streaming state
-    uint8_t *stream_buf;
-    StreamBuffer streamer; // buffer for streaming audio
+    double *stream_buf;
+    AudioStreamBuffer streamer; // buffer for streaming audio
 } Voice;
 
 // void voice_init(Voice *voice, double sample_rate);

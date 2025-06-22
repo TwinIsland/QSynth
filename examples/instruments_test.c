@@ -314,6 +314,7 @@ int main()
     printf("Thank you for testing QSYNTH!\n");
     
     // Cleanup
+    synth_print_stat(synth);
     synth_stop(synth);
     synth_cleanup(synth);
     

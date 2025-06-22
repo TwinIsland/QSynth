@@ -19,7 +19,7 @@ void voice_init(Voice *voice)
 
     for (int i = 0; i < MAX_TONE_LAYERS; ++i)
     {
-        voice->phases[i] = 0;
+        voice->phases[i] = 0.0;
     }
 }
 
@@ -28,14 +28,15 @@ void voice_start(Voice *voice, double sample_rate)
     adsr_init(&voice->lenvelope, &voice->tone->envelope_opt, voice->duration_ms);
     biquad_init(&voice->lfilter, &voice->tone->filter_opt, sample_rate);
     voice->_sample_rate = sample_rate;
-    voice->active = true;
 
     // init stream buffer
-    voice->stream_buf = calloc(VOICE_BUFFER_SIZE, sizeof(int8_t));
+    voice->stream_buf = calloc(VOICE_BUFFER_SIZE, sizeof(double));
     Stream_init(&voice->streamer, voice->stream_buf, VOICE_BUFFER_SIZE);
 
     adsr_note_on(&voice->lenvelope);
     biquad_reset(&voice->lfilter);
+
+    voice->active = true;   // MUST set active in the end of function
 }
 
 double voice_step(Voice *voice, double delta_time)

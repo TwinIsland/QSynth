@@ -54,16 +54,16 @@ static void *voice_dp_generator(void *arg)
 
     while (synth->voice_dp_generator_running)
     {
+
         for (int v = 0; v < MAX_VOICE_ACTIVE; v++)
         {
             Voice *voice = &synth->voices[v];
             if (!voice->active)
                 continue;
 
-            if (Stream_available(&voice->streamer) <= roundf(VOICE_BUFFER_SIZE * VOICE_BUFFER_REFILL_THRESHOLD))
+            if (Stream_fillRatio(&voice->streamer) <= VOICE_BUFFER_REFILL_THRESHOLD)
             {
-                // need to refill, start another thread to refill
-                while (Stream_space(&voice->streamer) >= (short)sizeof(double))
+                while (Stream_space(&voice->streamer) > 0)
                 {
                     Stream_writeDouble(&voice->streamer, voice_step(voice, synth->delta_time));
                 }
@@ -84,8 +84,6 @@ void _process_voice_buffer(Synthesizer *synth)
 
     int frame_count = synth->device.config.buffer_size;
 
-    // int active_voices = 0;
-
     for (int i = 0; i < frame_count; i++)
     {
         double left_mix = 0.0, right_mix = 0.0;
@@ -97,17 +95,10 @@ void _process_voice_buffer(Synthesizer *synth)
             if (!voice->active)
                 continue;
 
-            if (Stream_available(&voice->streamer) <= roundf(VOICE_BUFFER_SIZE * VOICE_BUFFER_REFILL_THRESHOLD))
-            {
-                // need to refill, start another thread to refill
-                int write_count = 0;
-                while (Stream_space(&voice->streamer) >= (short)sizeof(double) && write_count++ < 10)
-                {
-                    Stream_writeDouble(&voice->streamer, voice_step(voice, synth->delta_time));
-                }
-            }
+            double sample = 0.0;
+            while (Stream_available(&voice->streamer) == 0);
 
-            double sample = Stream_readDouble(&voice->streamer);
+            sample = Stream_readDouble(&voice->streamer);
 
             // apply panning
             double left_gain = 1.0 - voice->pan;
@@ -250,6 +241,7 @@ bool synth_start(Synthesizer *synth)
         return false;
     }
 
+    synth->voice_dp_generator_running = true;
     if (pthread_create(&voice_dp_generator_thread, NULL, voice_dp_generator, synth) != 0)
     {
         printf("Failed to create voice thread\n");
@@ -258,7 +250,6 @@ bool synth_start(Synthesizer *synth)
     }
     printf("Voice DP generator thread started\n");
 
-    synth->voice_dp_generator_running = true;
     synth->device.is_playing = true;
 
     printf("Audio playback started\n");
@@ -267,6 +258,11 @@ bool synth_start(Synthesizer *synth)
 
 void synth_stop(Synthesizer *synth)
 {
+    if (!synth || !synth->device.is_playing)
+    {
+        return;
+    }
+
     audio_device_stop(&synth->device);
     synth->device.is_playing = false;
     synth->voice_dp_generator_running = false;
@@ -276,6 +272,22 @@ void synth_stop(Synthesizer *synth)
     printf("Voice DP generator thread exiting\n");
 
     printf("Audio playback ended\n");
+}
+
+void synth_print_stat(Synthesizer *synth) {
+    if (!synth)
+    {
+        printf("Synthesizer not initialized\n");
+        return;
+    }
+    printf("=== QSynth Statistics ===\n");
+    printf("Sample Rate: %.1f Hz\n", synth->device.config.sample_rate);
+    printf("Channels: %d\n", synth->device.config.channels);
+    printf("Buffer Size: %d frames\n", synth->device.config.buffer_size);
+    printf("Master Volume: %.2f\n", synth->master_volume);
+    printf("Samples Played: %d\n", synth->samples_played);
+    printf("Voices Active: %d\n", MAX_VOICE_ACTIVE);
+    printf("=========================\n");
 }
 
 int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteCfg *cfg)
