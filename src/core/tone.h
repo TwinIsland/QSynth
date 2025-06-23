@@ -14,6 +14,6 @@ typedef struct
     double mix_levels[MAX_TONE_LAYERS];
     double phase_diff[MAX_TONE_LAYERS]; // phase difference for each layers
 
-    FilterCfg filter_opt;
-    EnvelopeCfg envelope_opt;
+    FilterCfg filter_opt;           // filter options
+    EnvelopeCfg envelope_opt;       // envelop duration control options
 } Tone;

@@ -20,6 +20,7 @@
         "streambuffer.h": "c",
         "pthread.h": "c",
         "unistd.h": "c",
-        "mmsystem.h": "c"
+        "mmsystem.h": "c",
+        "biquad.h": "c"
     }
 }

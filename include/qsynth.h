@@ -8,12 +8,18 @@ typedef struct Synthesizer Synthesizer;
 
 #define MAX_TONE_LAYERS 4
 
-#define AUDIO_FRAME_PER_READ 4410         // 100ms buffer size for audio device
-#define VOICE_BUFFER_SIZE 4096            // Keep this (92ms buffer)
-#define VOICE_BUFFER_REFILL_THRESHOLD 0.7 // Refill more aggressively
-#define REFILL_CHUNK_SIZE 2048            // MUCH smaller chunks
+#define AUDIO_FRAME_PER_READ 4410 // 100ms buffer size for audio device
 
-#define MAX_VOICE_ACTIVE 5
+#define VOICE_BUFFER_SIZE 8192
+#define VOICE_BUFFER_REFILL_THRESHOLD 0.5
+#define REFILL_CHUNK_SIZE 8192
+#define MAX_VOICE_ACTIVE 16
+
+typedef enum
+{
+    NOTE_CONTROL_DURATION, // Use duration_ms
+    NOTE_CONTROL_MANUAL    // Use start_note/end_note API
+} NoteControlMode;
 
 typedef struct
 {
@@ -46,7 +52,8 @@ bool synth_start(Synthesizer *synth);
 void synth_stop(Synthesizer *synth);
 
 // qsynth basic sound interface
-int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteCfg *cfg);
+int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteControlMode control_mode, NoteCfg *cfg);
+void synth_end_note(Synthesizer *synth, int voice_id);
 
 // qsynth global setting
 int synth_set_master_volume(Synthesizer *synth, double volume);

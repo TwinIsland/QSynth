@@ -40,5 +40,3 @@ struct Synthesizer
     // static pre-computed data
     double delta_time;
 };
-
-void _process_voice_buffer(Synthesizer *synth);

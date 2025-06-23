@@ -306,7 +306,7 @@ void synth_print_stat(Synthesizer *synth)
     printf("=========================\n");
 }
 
-int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteCfg *cfg)
+int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteControlMode control_mode, NoteCfg *cfg)
 {
     if (!synth)
     {
@@ -343,6 +343,7 @@ int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteCfg *cfg)
             voice->frequency = frequency;
             voice->amplitude = cfg->amplitude;
             voice->pan = cfg->pan;
+            voice->control_mode = control_mode;
 
             voice_start(voice, synth->device.config.sample_rate);
 
@@ -356,6 +357,10 @@ int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteCfg *cfg)
     return -1;
 }
 
+void synth_end_note(Synthesizer *synth, int voice_id) {
+    voice_end(&synth->voices[voice_id]);
+}
+
 int synth_set_master_volume(Synthesizer *synth, double volume)
 {
     if (!synth)
@@ -366,12 +371,12 @@ int synth_set_master_volume(Synthesizer *synth, double volume)
 
     if (volume < 0 || volume > 1)
     {
-        printf("volume can only be set in range 0-1");
+        printf("volume can only be set in range 0-1\n");
         set_error(QSYNTH_ERROR_NOTECFG);
         return synth->master_volume;
     }
 
-    printf("set master volume to be: %d", volume);
+    printf("set master volume to be: %d\n", volume);
     synth->master_volume = volume;
     return synth->master_volume;
 }

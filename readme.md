@@ -6,10 +6,9 @@ A high-performance multi-layered audio synthesizer written in C, featuring real-
 
 - **Multi-layered synthesis** - Up to 4 tone layers per instrument with independent waveforms and detuning
 - **Real-time audio processing** - Low-latency audio output with configurable buffer sizes  
-- **Custom Instruments** - QSynth allows you to create custom instruments by defining their synthesis parameters
-- **Cross-platform** - Windows and Linux support with unified API
-- **Advanced instruments** - Customizable ADSR envelopes, filters, and effects per voice
-- **Polyphonic playback** - Up to 7 simultaneous voices with independent panning and velocity
+- **Custom Instruments** - Create custom instruments by defining synthesis parameters
+- **Cross-platform** - Windows and Linux support
+- **Polyphonic playback** - Up to infinite simultaneous voices with independent panning and velocity
 
 ## Quick Start
 
@@ -58,7 +57,7 @@ int main() {
     // Start audio playback
     synth_start(synth);
     
-    // Play a note
+    // Play a note with duration control
     NoteCfg note = {
         .midi_note = 60,        // Middle C
         .duration_ms = 1000,    // 1 second
@@ -67,10 +66,12 @@ int main() {
         .pan = 0.5              // Center pan
     };
     
-    synth_play_note(synth, INST_WARM_BASS, &note);
+    synth_play_note(synth, INST_WARM_BASS, NOTE_CONTROL_DURATION, &note);
     
-    // Wait for note to finish
-    Sleep(1500);
+    // Or play with manual control
+    int voice_id = synth_play_note(synth, INST_LEAD_SQUARE, NOTE_CONTROL_MANUAL, &note);
+    Sleep(2000);  // Hold note for 2 seconds
+    synth_end_note(synth, voice_id);  // Release note
     
     // Cleanup
     synth_stop(synth);
@@ -80,9 +81,27 @@ int main() {
 }
 ```
 
-## Creating Custom Instruments
+## Note Control Modes
 
-QSynth allows you to create custom instruments by defining their synthesis parameters. This is a two-step process:
+QSynth supports two ways to control note duration:
+
+### Duration Control
+Notes automatically stop after a specified time:
+```c
+NoteCfg note = {.midi_note = 60, .duration_ms = 1000, ...};
+synth_play_note(synth, INST_WARM_BASS, NOTE_CONTROL_DURATION, &note);
+```
+
+### Manual Control
+You control when notes start and stop (like holding a piano key):
+```c
+NoteCfg note = {.midi_note = 60, ...};
+int voice_id = synth_play_note(synth, INST_LEAD_SQUARE, NOTE_CONTROL_MANUAL, &note);
+// ... note plays indefinitely until you call:
+synth_end_note(synth, voice_id);
+```
+
+## Creating Custom Instruments
 
 ### Step 1: Add Instrument Type
 
@@ -108,186 +127,94 @@ typedef enum {
 Add the instrument definition in `src/assets/instruments.c`:
 
 ```c
-static const InstrumentSignature instrument_signatures[INST_COUNT] = {
-    // ... existing instruments ...
-    
-    // Your custom instrument
-    [INST_MY_CUSTOM_SYNTH] = {
-        .tone = {
-            .layers = {
-                {.type = WAVE_SQUARE},      // Layer 1: Square wave
-                {.type = WAVE_SAWTOOTH},    // Layer 2: Sawtooth
-                {.type = WAVE_SINE},        // Layer 3: Sine wave
-                {.type = WAVE_TRIANGLE},    // Layer 4: Triangle
-            },
-            .detune = {0.0, 0.05, -12.0, 24.0},     // Detune in semitones
-            .mix_levels = {0.6, 0.3, 0.2, 0.1},    // Volume mix for each layer
-            .phase_diff = {0, 90, 180, 270},        // Phase offset in degrees
-            .filter_opt = {
-                .cutoff = 1200,                     // Filter cutoff frequency
-                .filter_type = FILTER_LOWPASS,      // Filter type
-                .resonance = 0.4                    // Filter resonance
-            },
-            .envelope_opt = ENVELOPE_OPT_PLUCK,     // Envelope preset
+[INST_MY_CUSTOM_SYNTH] = {
+    .tone = {
+        .layers = {
+            {.type = WAVE_SQUARE},      // Layer 1: Square wave
+            {.type = WAVE_SAWTOOTH},    // Layer 2: Sawtooth
+            {.type = WAVE_SINE},        // Layer 3: Sine wave
+            {.type = WAVE_TRIANGLE},    // Layer 4: Triangle
         },
-        .name = "My Custom Synth",
-        .category = "Custom",
-        .description = "A custom synthesizer with rich harmonic content"
+        .detune = {0.0, 0.05, -12.0, 24.0},     // Detune in semitones
+        .mix_levels = {0.6, 0.3, 0.2, 0.1},    // Volume mix for each layer
+        .phase_diff = {0, 90, 180, 270},        // Phase offset in degrees
+        .filter_opt = {
+            .cutoff = 1200,                     // Filter cutoff frequency
+            .filter_type = FILTER_LOWPASS,      // Filter type
+            .resonance = 0.4                    // Filter resonance
+        },
+        .envelope_opt = ENVELOPE_OPT_PLUCK,     // Envelope preset
     },
-};
+    .name = "My Custom Synth",
+    .category = "Custom",
+    .description = "A custom synthesizer with rich harmonic content"
+},
 ```
 
-### Instrument Parameters Explained
+### Instrument Parameters
 
-#### **Tone Layers (Up to 4)**
-- **WAVE_SINE** - Pure sine wave (smooth, fundamental)
-- **WAVE_SQUARE** - Square wave (hollow, reed-like)
-- **WAVE_SAWTOOTH** - Sawtooth wave (bright, buzzy)
-- **WAVE_TRIANGLE** - Triangle wave (soft, flute-like)
-
-#### **Detune Array**
-- Values in **semitones** relative to the base frequency
-- `0.0` = no detune, `12.0` = one octave up, `-12.0` = one octave down
-- Small values like `0.05` create chorus/beating effects
-
-#### **Mix Levels**
-- Volume for each layer (0.0 to 1.0)
-- Should generally sum to around 1.0 or less to avoid clipping
-
-#### **Phase Differences**
-- Phase offset for each layer in **degrees** (0-360)
-- Creates different harmonic relationships between layers
-
-#### **Filter Options**
-- **cutoff**: Frequency in Hz where filter takes effect
-- **filter_type**: `FILTER_LOWPASS`, `FILTER_HIGHPASS`, `FILTER_BANDPASS`, `FILTER_NONE`
-- **resonance**: Filter emphasis (0.0 to 1.0, higher = more pronounced)
-
-#### **Envelope Presets**
-- **ENVELOPE_OPT_LEAD** - Quick attack, sustained
-- **ENVELOPE_OPT_PLUCK** - Quick attack, quick decay
-- **ENVELOPE_OPT_PAD** - Slow attack, long sustain
-- **ENVELOPE_OPT_BASS** - Medium attack, punchy
-
-### Usage Example
-
-```c
-// Play your custom instrument
-NoteCfg note = {
-    .midi_note = 60,
-    .duration_ms = 2000,
-    .amplitude = 0.7,
-    .velocity = 1.0,
-    .pan = 0.5
-};
-
-synth_play_note(synth, INST_MY_CUSTOM_SYNTH, &note);
-```
-
-### Tips for Instrument Design
-
-1. **Start Simple** - Begin with one or two layers, then add complexity
-2. **Balance Mix Levels** - Ensure total doesn't exceed 1.0 to prevent distortion
-3. **Use Detuning Creatively** - Small detunes (0.01-0.1) create thickness, large detunes (-12, +12) add harmonic content
-4. **Filter Experimentation** - Try different cutoff frequencies and resonance values
-5. **Test Across Octaves** - Make sure your instrument sounds good in different pitch ranges
-
-After making changes, rebuild with `./nob your_example` and test your new instrument!
-
+- **Layers**: Mix up to 4 waveforms (SINE, SQUARE, SAWTOOTH, TRIANGLE)
+- **Detune**: Pitch offset in semitones (0.05 = slight chorus, 12 = octave up)
+- **Mix Levels**: Volume for each layer (0.0 to 1.0)
+- **Phase Differences**: Phase offset in degrees (0-360)
+- **Filters**: LOWPASS, HIGHPASS, BANDPASS, or NONE
+- **Envelopes**: PLUCK, PAD, BASS, LEAD, PERCUSSION, ORGAN presets
 
 ## API Reference
 
-### Initialization & Cleanup
+### Core Functions
 
-#### `bool synth_init(Synthesizer** synth_ptr, double sample_rate, int channels)`
-Initializes the synthesizer with specified audio parameters.
-- **synth_ptr**: Pointer to store the created synthesizer instance
-- **sample_rate**: Audio sample rate (e.g., 44100.0 Hz)
-- **channels**: Number of audio channels (typically 2 for stereo)
-- **Returns**: `true` on success, `false` on failure
+```c
+// Initialization
+bool synth_init(Synthesizer** synth_ptr, double sample_rate, int channels);
+void synth_cleanup(Synthesizer* synth);
 
-#### `void synth_cleanup(Synthesizer* synth)`
-Cleans up and frees all synthesizer resources.
+// Audio control
+bool synth_start(Synthesizer* synth);
+void synth_stop(Synthesizer* synth);
 
-### Audio Control
+// Sound generation
+int synth_play_note(Synthesizer* synth, InstrumentType instrument, 
+                    NoteControlMode control_mode, NoteCfg *cfg);
+void synth_end_note(Synthesizer* synth, int voice_id);
 
-#### `bool synth_start(Synthesizer* synth)`
-Starts real-time audio processing and playback.
-- **Returns**: `true` on success, `false` on failure
+// Configuration
+int synth_set_master_volume(Synthesizer *synth, double volume);
 
-#### `void synth_stop(Synthesizer* synth)`
-Stops audio processing and playback.
-
-### Sound Generation
-
-#### `int synth_play_note(Synthesizer* synth, InstrumentType instrument, NoteCfg *cfg)`
-Plays a musical note with the specified instrument and configuration.
-- **synth**: Synthesizer instance
-- **instrument**: Instrument type (e.g., `INST_LEAD_SQUARE`, `INST_WARM_BASS`, you can find all available instruments in `assets/instruments.h`)
-- **cfg**: Note configuration (pitch, duration, volume, etc.)
-- **Returns**: Voice ID on success, negative value on error
-
-### Configuration
-
-#### `int synth_set_master_volume(Synthesizer *synth, double volume)`
-Sets the global master volume for all audio output.
-- **volume**: Volume level (0.0 to 1.0)
-- **Returns**: 0 on success, negative value on error
-
-### Error Handling
-
-#### `QSynthError synth_get_last_error()`
-Returns the last error code that occurred.
-
-#### `const char* synth_get_error_string(QSynthError error)`
-Converts an error code to a human-readable string.
+// Error handling
+QSynthError synth_get_last_error();
+const char* synth_get_error_string(QSynthError error);
+```
 
 ### Note Configuration
 
-The `NoteCfg` structure defines how a note should be played:
-
 ```c
 typedef struct {
-    int midi_note;      // MIDI note number (0-127, middle C = 60)
-    int duration_ms;    // Duration in milliseconds
+    int midi_note;      // MIDI note number (60 = middle C)
+    int duration_ms;    // Duration in milliseconds (for DURATION mode)
     double amplitude;   // Note volume (0.0 to 1.0)
     double velocity;    // Attack velocity (0.0 to 1.0)
-    double pan;         // Stereo panning (0.0 = left, 1.0 = right, 0.5 = center)
+    double pan;         // Stereo panning (0.0 = left, 0.5 = center, 1.0 = right)
 } NoteCfg;
 ```
 
-## Architecture
+## Available Instruments
 
-### Double Buffering System
-QSynth uses a ping-pong buffer system where audio is rendered to one buffer while the audio device plays from another. This ensures smooth, uninterrupted audio playback even during CPU spikes.
-
-### Per-Voice Buffer Streams
-Each active voice maintains its own circular buffer that's filled by a background thread. This prevents audio dropouts when complex synthesis algorithms take longer than the audio callback deadline.
-
-### Multi-Threading Design
-- **Audio thread**: High-priority real-time thread for audio output
-- **Voice generation threads**: Background threads that pre-generate audio samples
-- **Main thread**: User interface and note triggering
-
-## Error Codes
-
-- `QSYNTH_ERROR_NONE` - No error
-- `QSYNTH_ERROR_MEMALLOC` - Memory allocation failed  
-- `QSYNTH_ERROR_DEVICE` - Audio device error
-- `QSYNTH_ERROR_NOTECFG` - Invalid note configuration
-- `QSYNTH_ERROR_UNINIT` - Synthesizer not initialized
-- `QSYNTH_ERROR_VOICE_UNAVAILABLE` - No free voices available
-- `QSYNTH_ERROR_UNSUPPORT` - Unsupported operation
+- `INST_LEAD_SQUARE` - Square wave lead synthesizer
+- `INST_WARM_BASS` - Warm bass sound
+- `INST_ETHEREAL_PAD` - Atmospheric pad
+- `INST_METALLIC_PLUCK` - Plucked metallic sound
+- `INST_WOBBLE_BASS` - Bass with filter modulation
+- `INST_BELL_LEAD` - Bell-like lead sound
+- `INST_DEEP_DRONE` - Deep drone sound
 
 ## Build Options
 
 - `--debug` - Build with debug symbols and logging
-- `--x64` - Build for 64-bit architecture (default: 32-bit)
-- `--release` - Build with optimizations (default)
+- `--x64` - Build for 64-bit architecture
+- `--release` - Build with optimizations
 
 ## Requirements
 
 - **Windows**: MinGW-w64 or Visual Studio
-- **Linux**: GCC with pthread support  
-- **Dependencies**: pthread library (included in build)
-
+- **Linux**: GCC with pthread support

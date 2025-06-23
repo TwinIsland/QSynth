@@ -16,27 +16,31 @@ void voice_init(Voice *voice)
     voice->velocity = 0;
     voice->_sample_rate = 0;
     voice->amplitude = 0;
+    voice->cur_duration = 0;
+    voice->voice_is_end = false;
 
     memset(voice->stream_buf, 0, sizeof(voice->stream_buf));
-
-    for (int i = 0; i < MAX_TONE_LAYERS; ++i)
-    {
-        voice->phases[i] = 0.0;
-    }
+    memset(voice->phases, 0, sizeof(voice->phases));
 }
 
 void voice_start(Voice *voice, double sample_rate)
 {
-    adsr_init(&voice->lenvelope, &voice->tone->envelope_opt, voice->duration_ms);
-    biquad_init(&voice->lfilter, &voice->tone->filter_opt, sample_rate);
+    adsr_init(&voice->envelope, &voice->tone->envelope_opt);
+    biquad_init(&voice->filter, &voice->tone->filter_opt, sample_rate);
     voice->_sample_rate = sample_rate;
-    
+
     stream_init(&voice->streamer, voice->stream_buf, VOICE_BUFFER_SIZE);
 
-    adsr_note_on(&voice->lenvelope);
-    biquad_reset(&voice->lfilter);
+    adsr_note_on(&voice->envelope);
+    biquad_reset(&voice->filter);
 
-    voice->active = true;   // MUST set active in the end of function
+    voice->active = true; // MUST set active in the end of function
+}
+
+void voice_end(Voice *voice)
+{
+    voice->voice_is_end = true;
+    adsr_note_off(&voice->envelope);
 }
 
 double voice_step(Voice *voice, double delta_time)
@@ -44,16 +48,12 @@ double voice_step(Voice *voice, double delta_time)
     if (!voice->active)
         return 0.0;
 
-    // prioritize envelope calculating can optimize processing speed
-    double envelope = adsr_process(&voice->lenvelope, delta_time);
-    if (envelope <= 0.0001)
-    {
-        if (!adsr_is_active(&voice->lenvelope))
-        {
-            voice->active = false;
-        }
-        return 0.0;
-    }
+    // if note controlled by duration, check if need to end voice
+    voice->cur_duration += delta_time;
+    if (voice->control_mode == NOTE_CONTROL_DURATION && !voice->voice_is_end && voice->cur_duration * 1000 >= voice->duration_ms)
+        voice_end(voice);
+
+    double envelope = adsr_process(&voice->envelope, delta_time);
 
     double base_phase_increment = phase_increment(voice->frequency, voice->_sample_rate);
     double sample_mixed = 0.0;
@@ -75,16 +75,16 @@ double voice_step(Voice *voice, double delta_time)
     }
 
     // apply filter
-    if (voice->lfilter.cfg.filter_type != FILTER_NONE)
+    if (voice->filter.cfg.filter_type != FILTER_NONE)
     {
-        sample_mixed = biquad_process(&voice->lfilter, sample_mixed);
+        sample_mixed = biquad_process(&voice->filter, sample_mixed);
     }
 
     // apply envelope
     sample_mixed *= envelope * voice->amplitude;
 
     // update voice status
-    if (!adsr_is_active(&voice->lenvelope))
+    if (!adsr_is_active(&voice->envelope))
     {
         voice->active = false;
     }

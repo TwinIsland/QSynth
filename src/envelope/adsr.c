@@ -1,117 +1,197 @@
 #include "adsr.h"
-#include <math.h>
 #include <stdio.h>
 
-void adsr_init(ADSREnvelope *env, const EnvelopeCfg *cfg, int duration_ms)
+void adsr_init(ADSREnvelope *env, const EnvelopeCfg *cfg)
 {
-    adsr_reset(env);
+    if (!env || !cfg)
+        return;
 
-    env->attack_time = duration_ms * cfg->attack_ratio;
-    env->decay_time = duration_ms * cfg->decay_ratio;
-    env->release_time = duration_ms * cfg->release_ratio;
-    env->sustain_time = duration_ms - (env->attack_time + env->decay_time + env->release_time);
-
+    env->state = ADSR_IDLE;
+    env->current_level = 0.0;
+    env->target_level = 0.0;
+    env->rate = 0.0;
     env->sustain_level = cfg->sustain_level;
+    env->attack_time = cfg->attack_time;
+    env->decay_time = cfg->decay_time;
+    env->release_time = cfg->release_time;
+    env->time_in_state = 0.0;
+    env->note_is_on = 0;
 }
 
 void adsr_reset(ADSREnvelope *env)
 {
+    if (!env)
+        return;
+
     env->state = ADSR_IDLE;
-    env->phase = 0.0;
     env->current_level = 0.0;
-    env->note_released = 0;
+    env->target_level = 0.0;
+    env->rate = 0.0;
+    env->time_in_state = 0.0;
+    env->note_is_on = 0;
 }
 
 void adsr_note_on(ADSREnvelope *env)
 {
+    if (!env)
+        return;
+
+    env->note_is_on = 1;
     env->state = ADSR_ATTACK;
-    env->phase = 0.0;
-    env->note_released = 0;
+    env->target_level = 1.0;
+    env->time_in_state = 0.0;
+
+    // Calculate attack rate
+    if (env->attack_time > 0.0)
+    {
+        env->rate = (env->target_level - env->current_level) / env->attack_time;
+    }
+    else
+    {
+        env->current_level = env->target_level;
+        env->rate = 0.0;
+    }
+}
+
+void adsr_note_off(ADSREnvelope *env)
+{
+    if (!env)
+        return;
+
+    env->note_is_on = 0;
+    env->state = ADSR_RELEASE;
+    env->target_level = 0.0;
+    env->time_in_state = 0.0;
+
+    // Calculate release rate
+    if (env->release_time > 0.0)
+    {
+        env->rate = (env->target_level - env->current_level) / env->release_time;
+    }
+    else
+    {
+        env->current_level = env->target_level;
+        env->rate = 0.0;
+    }
 }
 
 double adsr_process(ADSREnvelope *env, double delta_time)
 {
-    if (env->state == ADSR_IDLE)
-    {
+    if (!env)
         return 0.0;
-    }
 
-    env->phase += delta_time * 1000.0; // Convert to milliseconds
+    env->time_in_state += delta_time;
 
     switch (env->state)
     {
+    case ADSR_IDLE:
+        env->current_level = 0.0;
+        break;
+
     case ADSR_ATTACK:
-        if (env->attack_time > 0 && env->phase < env->attack_time)
+        if (env->attack_time <= 0.0)
         {
-            env->current_level = env->phase / env->attack_time;
+            // Instant attack
+            env->current_level = 1.0;
+            env->state = ADSR_DECAY;
+            env->target_level = env->sustain_level;
+            env->time_in_state = 0.0;
+
+            if (env->decay_time > 0.0)
+            {
+                env->rate = (env->target_level - env->current_level) / env->decay_time;
+            }
+            else
+            {
+                env->current_level = env->target_level;
+                env->rate = 0.0;
+            }
         }
         else
         {
-            env->current_level = 1.0;
-            env->state = ADSR_DECAY;
-            env->phase = 0.0;
+            // Linear attack
+            env->current_level += env->rate * delta_time;
+
+            if (env->current_level >= 1.0)
+            {
+                env->current_level = 1.0;
+                env->state = ADSR_DECAY;
+                env->target_level = env->sustain_level;
+                env->time_in_state = 0.0;
+
+                if (env->decay_time > 0.0)
+                {
+                    env->rate = (env->target_level - env->current_level) / env->decay_time;
+                }
+                else
+                {
+                    env->current_level = env->target_level;
+                    env->rate = 0.0;
+                }
+            }
         }
         break;
 
     case ADSR_DECAY:
-        if (env->decay_time > 0 && env->phase < env->decay_time)
+        if (env->decay_time <= 0.0)
         {
-            double decay_progress = env->phase / env->decay_time;
-            env->current_level = 1.0 - decay_progress * (1.0 - env->sustain_level);
+            // Instant decay
+            env->current_level = env->sustain_level;
+            env->state = ADSR_SUSTAIN;
+            env->rate = 0.0;
         }
         else
         {
-            env->current_level = env->sustain_level;
-            env->state = ADSR_SUSTAIN;
-            env->phase = 0.0;
+            // Linear decay
+            env->current_level += env->rate * delta_time;
+
+            if (env->current_level <= env->sustain_level)
+            {
+                env->current_level = env->sustain_level;
+                env->state = ADSR_SUSTAIN;
+                env->rate = 0.0;
+            }
         }
         break;
 
     case ADSR_SUSTAIN:
         env->current_level = env->sustain_level;
-        if (env->sustain_time > 0 && env->phase >= env->sustain_time)
-        {
-            env->state = ADSR_RELEASE;
-            env->phase = 0.0;
-        }
-        else if (env->sustain_time <= 0)
-        {
-            env->state = ADSR_RELEASE;
-            env->phase = 0.0;
-        }
         break;
 
     case ADSR_RELEASE:
-        if (env->release_time > 0 && env->phase < env->release_time)
+        if (env->release_time <= 0.0)
         {
-            double release_progress = env->phase / env->release_time;
-            env->current_level = env->sustain_level * (1.0 - release_progress);
+            // Instant release
+            env->current_level = 0.0;
+            env->state = ADSR_IDLE;
+            env->rate = 0.0;
         }
         else
         {
-            env->current_level = 0.0;
-            env->state = ADSR_IDLE;
-        }
-        break;
+            // Linear release
+            env->current_level += env->rate * delta_time;
 
-    case ADSR_IDLE:
-    default:
-        env->current_level = 0.0;
+            if (env->current_level <= 0.0)
+            {
+                env->current_level = 0.0;
+                env->state = ADSR_IDLE;
+                env->rate = 0.0;
+            }
+        }
         break;
     }
 
-    // clamp to prevent negative values
-    if (env->current_level < 0.001 && env->state == ADSR_RELEASE)     
-    {         
-        env->current_level = 0.0;         
-        env->state = ADSR_IDLE;     
-    }      
-
+    // Clamp output to valid range
+    if (env->current_level < 0.0)
+        env->current_level = 0.0;
+    if (env->current_level > 1.0)
+        env->current_level = 1.0;
 
     return env->current_level;
 }
 
 int adsr_is_active(const ADSREnvelope *env)
 {
-    return env->state != ADSR_IDLE;
+    if (!env) return 0;
+    return (env->state != ADSR_IDLE);
 }

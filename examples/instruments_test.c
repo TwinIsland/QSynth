@@ -54,7 +54,7 @@ void test_instrument(Synthesizer *synth, InstrumentType inst_type, const char* t
             .velocity = 0.8f,
         };
         
-        int voice = synth_play_note(synth, inst_type, &cfg);
+        int voice = synth_play_note(synth, inst_type, NOTE_CONTROL_DURATION, &cfg);
         if (voice == -1)
         {
             printf("  ERROR: Failed to play note %d\n", arpeggio[i]);
@@ -85,7 +85,7 @@ void play_track(Synthesizer *synth, const Track *track)
                 .velocity = track->velocity,
             };
             
-            synth_play_note(synth, track->instrument, &cfg);
+            synth_play_note(synth, track->instrument, NOTE_CONTROL_DURATION, &cfg);
         }
         
         Sleep(track->delay_ms);
@@ -203,21 +203,21 @@ void play_full_song(Synthesizer *synth)
             .midi_note = chord_progression[chord] - 24, 
             .pan = 0.2f, .velocity = 0.8f
         };
-        synth_play_note(synth, INST_WARM_BASS, &bass_cfg);
+        synth_play_note(synth, INST_WARM_BASS,NOTE_CONTROL_DURATION, &bass_cfg);
         
         NoteCfg pad_cfg = {
             .amplitude = 0.4f, .duration_ms = 2000, 
             .midi_note = chord_progression[chord], 
             .pan = 0.5f, .velocity = 0.6f
         };
-        synth_play_note(synth, INST_ETHEREAL_PAD, &pad_cfg);
+        synth_play_note(synth, INST_ETHEREAL_PAD, NOTE_CONTROL_DURATION, &pad_cfg);
         
         NoteCfg lead_cfg = {
             .amplitude = 0.5f, .duration_ms = 1500, 
             .midi_note = chord_progression[chord] + 12, 
             .pan = 0.8f, .velocity = 0.7f
         };
-        synth_play_note(synth, INST_LEAD_SQUARE, &lead_cfg);
+        synth_play_note(synth, INST_LEAD_SQUARE, NOTE_CONTROL_DURATION, &lead_cfg);
         
         Sleep(1500);
     }

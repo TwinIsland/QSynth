@@ -197,10 +197,10 @@ void instrument_print_all(void)
 
             // Print envelope info
             printf("     Envelope: A:%.1f%% D:%.1f%% R:%.1f%% S:%.1f\n",
-                   inst->tone.envelope_opt.attack_ratio * 100,
-                   inst->tone.envelope_opt.decay_ratio * 100,
-                   inst->tone.envelope_opt.release_ratio * 100,
-                   inst->tone.envelope_opt.sustain_level * 100);
+                   inst->tone.envelope_opt.attack_time,
+                   inst->tone.envelope_opt.decay_time,
+                   inst->tone.envelope_opt.release_time,
+                   inst->tone.envelope_opt.sustain_level);
 
             printf("\n");
         }
@@ -401,14 +401,14 @@ void instrument_print_details(InstrumentType type)
     }
 
     printf("\nENVELOPE:\n");
-    printf("  Attack: %.1f%%\n", inst->tone.envelope_opt.attack_ratio * 100);
-    printf("  Decay: %.1f%%\n", inst->tone.envelope_opt.decay_ratio * 100);
+    printf("  Attack: %.1f%%\n", inst->tone.envelope_opt.attack_time * 100);
+    printf("  Decay: %.1f%%\n", inst->tone.envelope_opt.decay_time * 100);
     printf("  Sustain Level: %.1f%%\n", inst->tone.envelope_opt.sustain_level * 100);
-    printf("  Release: %.1f%%\n", inst->tone.envelope_opt.release_ratio * 100);
+    printf("  Release: %.1f%%\n", inst->tone.envelope_opt.release_time * 100);
 
-    double sustain_ratio = 1.0 - (inst->tone.envelope_opt.attack_ratio +
-                                  inst->tone.envelope_opt.decay_ratio +
-                                  inst->tone.envelope_opt.release_ratio);
+    double sustain_ratio = 1.0 - (inst->tone.envelope_opt.attack_time +
+                                  inst->tone.envelope_opt.decay_time +
+                                  inst->tone.envelope_opt.release_time);
     printf("  Sustain Duration: %.1f%%\n", sustain_ratio * 100);
     printf("\n");
 }
