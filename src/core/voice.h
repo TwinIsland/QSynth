@@ -30,7 +30,7 @@ typedef struct
     ADSREnvelope lenvelope;
 
     // streaming state
-    double *stream_buf;
+    double stream_buf[VOICE_BUFFER_SIZE];
     AudioStreamBuffer streamer; // buffer for streaming audio
 } Voice;
 
@@ -39,4 +39,3 @@ void voice_init(Voice *voice);
 
 void voice_start(Voice *voice, double sample_rate);
 double voice_step(Voice *voice, double delta_time);
-void voice_cleanup(Voice *voice);

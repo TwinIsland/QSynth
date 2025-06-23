@@ -237,7 +237,7 @@ int main() {
     synth_print_stat(synth);
     
     // Elegant shutdown
-    printf("\n🎼 Thank you for experiencing this classical masterwork\n");
+    printf("\n Thank you for experiencing this classical masterwork\n");
     printf("   rendered through QSynth's advanced synthesis engine.\n\n");
     
     synth_stop(synth);

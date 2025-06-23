@@ -7,13 +7,13 @@
 typedef struct Synthesizer Synthesizer;
 
 #define MAX_TONE_LAYERS 4
-#define AUDIO_BUFFER_SIZE 4410 // frame count, 4410 frames = 100ms at 44100Hz
 
+#define AUDIO_FRAME_PER_READ 4410         // 100ms buffer size for audio device
 #define VOICE_BUFFER_SIZE 4096            // Keep this (92ms buffer)
-#define VOICE_BUFFER_REFILL_THRESHOLD 0.6 // Refill more aggressively
-#define REFILL_CHUNK_SIZE 512             // MUCH smaller chunks
+#define VOICE_BUFFER_REFILL_THRESHOLD 0.7 // Refill more aggressively
+#define REFILL_CHUNK_SIZE 2048            // MUCH smaller chunks
 
-#define MAX_VOICE_ACTIVE 18
+#define MAX_VOICE_ACTIVE 5
 
 typedef struct
 {
@@ -32,6 +32,8 @@ typedef enum
     QSYNTH_ERROR_NOTECFG,
     QSYNTH_ERROR_UNINIT,
     QSYNTH_ERROR_VOICE_UNAVAILABLE,
+    QSYNTH_ERROR_CONFIG,
+    QSYNTH_ERROR_WORKER,
     QSYNTH_ERROR_UNSUPPORT,
 } QSynthError;
 

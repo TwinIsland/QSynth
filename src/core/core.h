@@ -22,8 +22,8 @@
 struct Synthesizer
 {
     // Audio system
-    short *audioBuffers[2];
-    unsigned char buffer_state; // [next_buffer_idx]
+    // short *audioBuffers[2];
+    // unsigned char buffer_state; // [next_buffer_idx]
     AudioDevice device;
 
     // Voice management
@@ -35,6 +35,7 @@ struct Synthesizer
     // State
     int samples_played;
     bool voice_dp_generator_running;
+    uint64_t latency_ms; 
 
     // static pre-computed data
     double delta_time;

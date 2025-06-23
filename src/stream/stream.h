@@ -21,7 +21,7 @@ typedef struct {
  * @param buffer Pre-allocated buffer array
  * @param size Buffer size in number of double elements (must be power of 2)
  */
-static inline void Stream_init(AudioStreamBuffer *stream, double *buffer, uint32_t size) {
+static inline void stream_init(AudioStreamBuffer *stream, double *buffer, uint32_t size) {
     stream->buffer = buffer;
     stream->size = size;
     stream->mask = size - 1;  // For power-of-2 sizes: size-1 gives us the mask
@@ -40,7 +40,7 @@ static inline void Stream_init(AudioStreamBuffer *stream, double *buffer, uint32
  * @param value Value to write
  * @return 1 if written successfully, 0 if buffer is full
  */
-static inline int Stream_writeDouble(AudioStreamBuffer *stream, double value) {
+static inline int stream_writeDouble(AudioStreamBuffer *stream, double value) {
     uint32_t current_write = stream->write_pos;
     uint32_t next_write = (current_write + 1) & stream->mask;
     
@@ -63,7 +63,7 @@ static inline int Stream_writeDouble(AudioStreamBuffer *stream, double value) {
  * @param stream Stream to read from
  * @return Value read, or 0.0 if buffer is empty
  */
-static inline double Stream_readDouble(AudioStreamBuffer *stream) {
+static inline double stream_readDouble(AudioStreamBuffer *stream) {
     uint32_t current_read = stream->read_pos;
     
     // Check if buffer is empty
@@ -87,7 +87,7 @@ static inline double Stream_readDouble(AudioStreamBuffer *stream) {
  * @param stream Stream to check
  * @return Number of elements available
  */
-static inline uint32_t Stream_available(AudioStreamBuffer *stream) {
+static inline uint32_t stream_available(AudioStreamBuffer *stream) {
     return (stream->write_pos - stream->read_pos) & stream->mask;
 }
 
@@ -96,7 +96,7 @@ static inline uint32_t Stream_available(AudioStreamBuffer *stream) {
  * @param stream Stream to check
  * @return Number of free spaces
  */
-static inline uint32_t Stream_space(AudioStreamBuffer *stream) {
+static inline uint32_t stream_space(AudioStreamBuffer *stream) {
     return (stream->read_pos - stream->write_pos - 1) & stream->mask;
 }
 
@@ -105,7 +105,7 @@ static inline uint32_t Stream_space(AudioStreamBuffer *stream) {
  * @param stream Stream to check
  * @return true if empty, false otherwise
  */
-static inline bool Stream_isEmpty(AudioStreamBuffer *stream) {
+static inline bool stream_isEmpty(AudioStreamBuffer *stream) {
     return stream->read_pos == stream->write_pos;
 }
 
@@ -114,7 +114,7 @@ static inline bool Stream_isEmpty(AudioStreamBuffer *stream) {
  * @param stream Stream to check
  * @return true if full, false otherwise
  */
-static inline bool Stream_isFull(AudioStreamBuffer *stream) {
+static inline bool stream_isFull(AudioStreamBuffer *stream) {
     return ((stream->write_pos + 1) & stream->mask) == stream->read_pos;
 }
 
@@ -123,7 +123,7 @@ static inline bool Stream_isFull(AudioStreamBuffer *stream) {
  * @param stream Stream to check
  * @return Fill percentage (0.0 to 1.0)
  */
-static inline double Stream_fillRatio(AudioStreamBuffer *stream) {
-    uint32_t available = Stream_available(stream);
+static inline double stream_fillRatio(AudioStreamBuffer *stream) {
+    uint32_t available = stream_available(stream);
     return (double)available / (double)(stream->size - 1);
 }

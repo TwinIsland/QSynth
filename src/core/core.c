@@ -15,8 +15,21 @@
 #endif
 #include "pthread.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#define GET_TIME_MS() GetTickCount()
+#else
+#include <time.h>
+static inline uint64_t GET_TIME_MS()
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+#endif
+
 static QSynthError g_last_error = QSYNTH_ERROR_NONE;
-pthread_t voice_dp_generator_thread;
+pthread_t voice_dp_generator_workers[MAX_VOICE_ACTIVE];
 
 static int set_error(AudioError error)
 {
@@ -30,59 +43,7 @@ static void audio_callback(void *user_data, int16_t *output_buffer, int frame_co
     Synthesizer *synth = (Synthesizer *)user_data;
 
     if (!synth)
-    {
         return;
-    }
-
-    int current_buffer_idx = synth->buffer_state & BUF_AVAILABLE_IDX_MASK;
-
-    memcpy(output_buffer, synth->audioBuffers[current_buffer_idx],
-           frame_count * 2 * sizeof(short));
-
-    synth->buffer_state ^= BUF_AVAILABLE_IDX_MASK;
-
-    _process_voice_buffer(synth);
-
-    synth->samples_played += frame_count;
-}
-
-static void *voice_dp_generator(void *arg)
-{
-    Synthesizer *synth = (Synthesizer *)arg;
-    if (!synth)
-        return NULL;
-
-    while (synth->voice_dp_generator_running)
-    {
-
-        for (int v = 0; v < MAX_VOICE_ACTIVE; v++)
-        {
-            Voice *voice = &synth->voices[v];
-            if (!voice->active)
-                continue;
-
-            if (Stream_fillRatio(&voice->streamer) <= VOICE_BUFFER_REFILL_THRESHOLD)
-            {
-                while (Stream_space(&voice->streamer) > 0)
-                {
-                    Stream_writeDouble(&voice->streamer, voice_step(voice, synth->delta_time));
-                }
-            }
-        }
-        SLEEP_MS(1);
-    }
-
-    return NULL;
-}
-
-void _process_voice_buffer(Synthesizer *synth)
-{
-    if (!synth)
-        return;
-
-    int buffer_to_fill = (synth->buffer_state & BUF_AVAILABLE_IDX_MASK) ^ 1;
-
-    int frame_count = synth->device.config.buffer_size;
 
     for (int i = 0; i < frame_count; i++)
     {
@@ -95,10 +56,15 @@ void _process_voice_buffer(Synthesizer *synth)
             if (!voice->active)
                 continue;
 
-            double sample = 0.0;
-            while (Stream_available(&voice->streamer) == 0);
+            if (stream_available(&voice->streamer) == 0)
+            {
+                uint64_t start_time = GET_TIME_MS();
+                while (stream_available(&voice->streamer) == 0)
+                    ;
+                synth->latency_ms += GET_TIME_MS() - start_time;
+            }
 
-            sample = Stream_readDouble(&voice->streamer);
+            double sample = stream_readDouble(&voice->streamer);
 
             // apply panning
             double left_gain = 1.0 - voice->pan;
@@ -121,17 +87,79 @@ void _process_voice_buffer(Synthesizer *synth)
         if (right_mix < -1.0)
             right_mix = -1.0;
 
-        synth->audioBuffers[buffer_to_fill][i * 2] = (int16_t)(left_mix * 32767);
-        synth->audioBuffers[buffer_to_fill][i * 2 + 1] = (int16_t)(right_mix * 32767);
+        // to 16bit
+        output_buffer[i * 2] = (int16_t)(left_mix * 32767);
+        output_buffer[i * 2 + 1] = (int16_t)(right_mix * 32767);
     }
+
+    synth->samples_played += frame_count;
 }
 
-bool synth_init(Synthesizer **synth_ptr, double sample_rate, int channels)
+struct voice_dp_generator_args
 {
+    Synthesizer *synth;
+    int voice_index;
+};
+
+static void *voice_dp_generator(void *arg)
+{
+    struct voice_dp_generator_args *args = (struct voice_dp_generator_args *)arg;
+    Synthesizer *synth = args->synth;
+    int voice_index = args->voice_index;
+    free(args);
+
+    if (!synth)
+        return NULL;
+
+    Voice *voice = &synth->voices[voice_index];
+
+    while (synth->voice_dp_generator_running)
+    {
+        if (voice->active && stream_fillRatio(&voice->streamer) <= VOICE_BUFFER_REFILL_THRESHOLD)
+        {
+            int refill_count = 0;
+            while (stream_space(&voice->streamer) > 0 && refill_count++ < REFILL_CHUNK_SIZE)
+            {
+                stream_writeDouble(&voice->streamer, voice_step(voice, synth->delta_time));
+            }
+        }
+        SLEEP_MS(1);
+    }
+
+    return NULL;
+}
+
+static bool synth_precheck(double sample_rate, int channels)
+{
+    if (!(VOICE_BUFFER_SIZE > 0 && (VOICE_BUFFER_SIZE & (VOICE_BUFFER_SIZE - 1)) == 0))
+    {
+        printf("VOICE_BUFFER_SIZE must be a power of 2\n");
+        set_error(QSYNTH_ERROR_CONFIG);
+        return false;
+    }
     if (channels != 2)
     {
         printf("QSynth only support 2 channel audio currently\n");
         set_error(QSYNTH_ERROR_UNSUPPORT);
+        return false;
+    }
+
+    if (sample_rate < 8000.0 || sample_rate > 192000.0)
+    {
+        printf("Sample rate must be between 8000Hz and 192000Hz, your set to %f\n", sample_rate);
+        set_error(QSYNTH_ERROR_CONFIG);
+        return false;
+    }
+
+    printf("QSynth pre-check passed\n");
+    return true;
+}
+
+bool synth_init(Synthesizer **synth_ptr, double sample_rate, int channels)
+{
+    if (!synth_precheck(sample_rate, channels))
+    {
+        printf("QSynth pre-check failed\n");
         return false;
     }
 
@@ -152,7 +180,7 @@ bool synth_init(Synthesizer **synth_ptr, double sample_rate, int channels)
     AudioConfig config = {
         .sample_rate = sample_rate,
         .channels = channels,
-        .buffer_size = AUDIO_BUFFER_SIZE,
+        .buffer_size = AUDIO_FRAME_PER_READ,
         .user_data = synth,
         .callback = audio_callback,
     };
@@ -167,20 +195,6 @@ bool synth_init(Synthesizer **synth_ptr, double sample_rate, int channels)
         set_error(QSYNTH_ERROR_DEVICE);
         synth_cleanup(synth);
         return false;
-    }
-
-    synth->buffer_state = 0;
-
-    // allocate audio buffers
-    for (int i = 0; i < 2; i++)
-    {
-        synth->audioBuffers[i] = (short *)calloc(AUDIO_BUFFER_SIZE * channels, sizeof(short));
-        if (!synth->audioBuffers[i])
-        {
-            set_error(QSYNTH_ERROR_MEMALLOC);
-            synth_cleanup(synth);
-            return false;
-        }
     }
 
     // init voice
@@ -212,21 +226,6 @@ void synth_cleanup(Synthesizer *synth)
     synth_stop(synth);
     audio_device_cleanup(&synth->device);
 
-    // free audio buffers
-    for (int i = 0; i < 2; i++)
-    {
-        if (synth->audioBuffers[i])
-        {
-            free(synth->audioBuffers[i]);
-        }
-    }
-
-    // free voice buffers
-    for (int i = 0; i < MAX_VOICE_ACTIVE; i++)
-    {
-        voice_cleanup(&synth->voices[i]);
-    }
-
     free(synth);
     printf("QSynth cleaned up\n");
 }
@@ -242,16 +241,26 @@ bool synth_start(Synthesizer *synth)
     }
 
     synth->voice_dp_generator_running = true;
-    if (pthread_create(&voice_dp_generator_thread, NULL, voice_dp_generator, synth) != 0)
+    // start voice DP generator thread
+    for (int i = 0; i < MAX_VOICE_ACTIVE; i++)
     {
-        printf("Failed to create voice thread\n");
-        audio_device_cleanup(&synth->device);
-        return false;
+        struct voice_dp_generator_args *args = malloc(sizeof(struct voice_dp_generator_args));
+        args->synth = synth;
+        args->voice_index = i;
+
+        if (pthread_create(&voice_dp_generator_workers[i], NULL, voice_dp_generator, args) != 0)
+        {
+            free(args);
+            printf("Failed to create voice DP generator thread %d\n", i);
+
+            synth_cleanup(synth);
+            set_error(QSYNTH_ERROR_WORKER);
+            return false;
+        }
     }
-    printf("Voice DP generator thread started\n");
+    printf("Voice DP generator threads(%d) created\n", sizeof(voice_dp_generator_workers) / sizeof(pthread_t));
 
     synth->device.is_playing = true;
-
     printf("Audio playback started\n");
     return true;
 }
@@ -265,16 +274,22 @@ void synth_stop(Synthesizer *synth)
 
     audio_device_stop(&synth->device);
     synth->device.is_playing = false;
-    synth->voice_dp_generator_running = false;
 
     printf("waiting for voice DP generator thread to finish...\n");
-    pthread_join(voice_dp_generator_thread, NULL);
+    synth->voice_dp_generator_running = false;
+
+    for (int i = 0; i < MAX_VOICE_ACTIVE; i++)
+    {
+        pthread_join(voice_dp_generator_workers[i], NULL);
+    }
+
     printf("Voice DP generator thread exiting\n");
 
     printf("Audio playback ended\n");
 }
 
-void synth_print_stat(Synthesizer *synth) {
+void synth_print_stat(Synthesizer *synth)
+{
     if (!synth)
     {
         printf("Synthesizer not initialized\n");
@@ -283,10 +298,11 @@ void synth_print_stat(Synthesizer *synth) {
     printf("=== QSynth Statistics ===\n");
     printf("Sample Rate: %.1f Hz\n", synth->device.config.sample_rate);
     printf("Channels: %d\n", synth->device.config.channels);
+    printf("Voices Active: %d\n", MAX_VOICE_ACTIVE);
     printf("Buffer Size: %d frames\n", synth->device.config.buffer_size);
     printf("Master Volume: %.2f\n", synth->master_volume);
     printf("Samples Played: %d\n", synth->samples_played);
-    printf("Voices Active: %d\n", MAX_VOICE_ACTIVE);
+    printf("Latency: %dms\n", (int)synth->latency_ms);
     printf("=========================\n");
 }
 
@@ -308,8 +324,6 @@ int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteCfg *cfg)
     {
         if (!synth->voices[i].active)
         {
-            voice_cleanup(&synth->voices[i]); // clean the previous voice buffer if needed
-
             double frequency = midi_to_frequency(cfg->midi_note);
             const InstrumentSignature *sig = instrument_get_signature(instrument);
 
