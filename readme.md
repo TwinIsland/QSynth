@@ -1,5 +1,6 @@
 # QSynth
 
+![](docs/demo.png)
 A high-performance multi-layered audio synthesizer written in C, featuring real-time audio processing with advanced instrument design capabilities.
 
 ## Features

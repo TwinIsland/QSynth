@@ -21,6 +21,7 @@
         "pthread.h": "c",
         "unistd.h": "c",
         "mmsystem.h": "c",
-        "biquad.h": "c"
+        "biquad.h": "c",
+        "style_cyber.h": "c"
     }
 }

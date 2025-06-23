@@ -26,7 +26,6 @@ int main()
             .amplitude = 1,
             .midi_note = melody[i],
             .pan = 0.5,
-            .velocity = 1,
         };
 
         int voice = synth_play_note(synth, INST_WARM_BASS, NOTE_CONTROL_MANUAL, &cfg);
@@ -47,9 +46,8 @@ int main()
         NoteCfg cfg = (NoteCfg){
             .amplitude = 1,
             .duration_ms = 1000,
-            .midi_note = melody[i],
+            .midi_note = 60,
             .pan = 0.5,
-            .velocity = 1,
         };
 
         int voice = synth_play_note(synth, INST_WARM_BASS, NOTE_CONTROL_DURATION, &cfg);

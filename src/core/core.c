@@ -31,7 +31,7 @@ static inline uint64_t GET_TIME_MS()
 static QSynthError g_last_error = QSYNTH_ERROR_NONE;
 pthread_t voice_dp_generator_workers[MAX_VOICE_ACTIVE];
 
-static int set_error(AudioError error)
+static int set_error(QSynthError error)
 {
     g_last_error = error;
     return 0;
@@ -48,6 +48,7 @@ static void audio_callback(void *user_data, int16_t *output_buffer, int frame_co
     for (int i = 0; i < frame_count; i++)
     {
         double left_mix = 0.0, right_mix = 0.0;
+        synth->voice_active = 0;
 
         // process all voices for this sample
         for (int v = 0; v < MAX_VOICE_ACTIVE; v++)
@@ -72,6 +73,8 @@ static void audio_callback(void *user_data, int16_t *output_buffer, int frame_co
 
             left_mix += sample * left_gain;
             right_mix += sample * right_gain;
+            synth->voice_active++;
+            synth->samples_played++;
         }
 
         // apply master volume and clamp
@@ -90,9 +93,14 @@ static void audio_callback(void *user_data, int16_t *output_buffer, int frame_co
         // to 16bit
         output_buffer[i * 2] = (int16_t)(left_mix * 32767);
         output_buffer[i * 2 + 1] = (int16_t)(right_mix * 32767);
-    }
 
-    synth->samples_played += frame_count;
+        // update recent sample
+        synth->recent_samples[synth->recent_samples_writeptr] = output_buffer[i * 2];
+        synth->recent_samples_writeptr = (synth->recent_samples_writeptr + 1) & RECENT_SAMPLE_MASK;
+
+        synth->recent_samples[synth->recent_samples_writeptr] = output_buffer[i * 2 + 1];
+        synth->recent_samples_writeptr = (synth->recent_samples_writeptr + 1) & RECENT_SAMPLE_MASK;
+    }
 }
 
 struct voice_dp_generator_args
@@ -213,6 +221,10 @@ bool synth_init(Synthesizer **synth_ptr, double sample_rate, int channels)
     synth->device.is_playing = false;
     synth->samples_played = 0;
     synth->voice_dp_generator_running = false;
+    synth->voice_active = 0;
+
+    memset(synth->recent_samples, 0, sizeof(synth->recent_samples));
+    synth->recent_samples_writeptr = 0;
 
     printf("QSynth initialized: %.1fHz, %d channels\n", sample_rate, channels);
     return true;
@@ -258,7 +270,7 @@ bool synth_start(Synthesizer *synth)
             return false;
         }
     }
-    printf("Voice DP generator threads(%d) created\n", sizeof(voice_dp_generator_workers) / sizeof(pthread_t));
+    printf("Voice DP generator threads(%zu) created\n", sizeof(voice_dp_generator_workers) / sizeof(pthread_t));
 
     synth->device.is_playing = true;
     printf("Audio playback started\n");
@@ -286,6 +298,20 @@ void synth_stop(Synthesizer *synth)
     printf("Voice DP generator thread exiting\n");
 
     printf("Audio playback ended\n");
+}
+
+QSynthStat synth_get_stat(Synthesizer *synth)
+{
+    return (QSynthStat){
+        .frame_per_read = AUDIO_FRAME_PER_READ,
+        .latency_ms = (int)synth->latency_ms,
+        .max_voice = MAX_VOICE_ACTIVE,
+        .recent_sample_size = RECENT_SAMPLE_SIZE,
+        .recent_samples = synth->recent_samples,
+        .sample_processed = synth->samples_played,
+        .voice_active = synth->voice_active,
+        .voice_buffer = VOICE_BUFFER_SIZE,
+    };
 }
 
 void synth_print_stat(Synthesizer *synth)
@@ -339,7 +365,6 @@ int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteControlMo
 
             voice->duration_ms = cfg->duration_ms;
             voice->tone = &sig->tone;
-            voice->velocity = cfg->velocity;
             voice->frequency = frequency;
             voice->amplitude = cfg->amplitude;
             voice->pan = cfg->pan;
@@ -347,7 +372,7 @@ int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteControlMo
 
             voice_start(voice, synth->device.config.sample_rate);
 
-            printf("Started voice %d: freq=%.2f, amp=%.2f\n", i, frequency, cfg->amplitude);
+            printf("Started voice %d: note=%d, freq=%.2f, amp=%.2f\n", i, cfg->midi_note, frequency, cfg->amplitude);
             return i;
         }
     }
@@ -357,7 +382,8 @@ int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteControlMo
     return -1;
 }
 
-void synth_end_note(Synthesizer *synth, int voice_id) {
+void synth_end_note(Synthesizer *synth, int voice_id)
+{
     voice_end(&synth->voices[voice_id]);
 }
 
@@ -376,7 +402,7 @@ int synth_set_master_volume(Synthesizer *synth, double volume)
         return synth->master_volume;
     }
 
-    printf("set master volume to be: %d\n", volume);
+    printf("set master volume to be: %f\n", volume);
     synth->master_volume = volume;
     return synth->master_volume;
 }

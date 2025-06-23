@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "instruments.h"
 
@@ -26,7 +27,6 @@ typedef struct
     int midi_note;
     int duration_ms;
     double amplitude;
-    double velocity;
     double pan;
 } NoteCfg;
 
@@ -42,6 +42,17 @@ typedef enum
     QSYNTH_ERROR_WORKER,
     QSYNTH_ERROR_UNSUPPORT,
 } QSynthError;
+
+typedef struct {
+    double frame_per_read;
+    int voice_buffer;
+    int max_voice;
+    int voice_active;
+    int latency_ms;
+    int sample_processed;
+    const int16_t *recent_samples;
+    int recent_sample_size;
+} QSynthStat;
 
 // qsynth init/deinit
 bool synth_init(Synthesizer **synth_ptr, double sample_rate, int channels);
@@ -61,6 +72,9 @@ int synth_set_master_volume(Synthesizer *synth, double volume);
 // qsynth error handling
 QSynthError synth_get_last_error();
 const char *synth_get_error_string(QSynthError error);
+
+// qsynth utils
+QSynthStat synth_get_stat(Synthesizer *synth);
 
 // qsynth static data
 void synth_print_stat(Synthesizer *synth);

@@ -5,11 +5,14 @@
 #include "audio_device.h"
 #include "qsynth.h"
 
+#include "stream.h"
+
 #include "voice.h"
 
 #include "../filters/biquad.h"
 
-#define BUF_AVAILABLE_IDX_MASK 0b1
+#define RECENT_SAMPLE_SIZE 1024 // have to be power of 2
+#define RECENT_SAMPLE_MASK 1023 // always equal to RECENT_SAMPLE_SIZE-1
 
 #ifdef _WIN32
     #include <windows.h>
@@ -36,6 +39,10 @@ struct Synthesizer
     int samples_played;
     bool voice_dp_generator_running;
     uint64_t latency_ms; 
+    int voice_active;
+
+    int16_t recent_samples[RECENT_SAMPLE_SIZE];
+    uint32_t recent_samples_writeptr;
 
     // static pre-computed data
     double delta_time;

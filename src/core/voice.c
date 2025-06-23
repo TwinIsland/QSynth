@@ -39,6 +39,7 @@ void voice_start(Voice *voice, double sample_rate)
 
 void voice_end(Voice *voice)
 {
+    // printf("end voice\n");
     voice->voice_is_end = true;
     adsr_note_off(&voice->envelope);
 }
