@@ -28,6 +28,7 @@ typedef struct
     int duration_ms;
     double amplitude;
     double pan;
+    double velocity; // unimplemented!!
 } NoteCfg;
 
 typedef enum
@@ -43,7 +44,18 @@ typedef enum
     QSYNTH_ERROR_UNSUPPORT,
 } QSynthError;
 
-typedef struct {
+// should be consistent with ma_device_state
+typedef enum
+{
+    DEVICE_UNINIT = 0,
+    DEVICE_STOPPED = 1,
+    DEVICE_STARTED = 2,
+    DEVICE_STARTING = 3,
+    DEVICE_STOPPING = 4,
+} QSynthDeviceState;
+
+typedef struct
+{
     double frame_per_read;
     int voice_buffer;
     int max_voice;
@@ -52,6 +64,7 @@ typedef struct {
     int sample_processed;
     const int16_t *recent_samples;
     int recent_sample_size;
+    QSynthDeviceState device_state;
 } QSynthStat;
 
 // qsynth init/deinit

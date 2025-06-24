@@ -22,6 +22,7 @@
         "unistd.h": "c",
         "mmsystem.h": "c",
         "biquad.h": "c",
-        "style_cyber.h": "c"
+        "style_cyber.h": "c",
+        "miniaudio.h": "c"
     }
 }

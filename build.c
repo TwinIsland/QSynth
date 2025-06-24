@@ -3,25 +3,10 @@
 
 #define BUILD_FOLDER "build/"
 #define SRC_FOLDER "src/"
-#define EXAMPLES_FOLDER "examples/"
+#define tests_FOLDER "tests/"
 #define UI_FOLDER "ui/"
 #define LIBS_FOLDER "libs/"
 #define DEVICE_FOLDER "device/"
-
-// Function to collect all .c files from src folder recursively
-bool collect_src_files(Nob_String_Builder *sb)
-{
-    // Add device files
-    nob_sb_append_cstr(sb, DEVICE_FOLDER "winaudio.c ");
-
-    // Add all source files (you can expand this to be recursive if needed)
-    nob_sb_append_cstr(sb, SRC_FOLDER "core/core.c ");
-    nob_sb_append_cstr(sb, SRC_FOLDER "voice/voice.c ");
-    nob_sb_append_cstr(sb, SRC_FOLDER "synthesizer/synthesizer.c ");
-    // Add more source files as needed...
-
-    return true;
-}
 
 // Function to copy all DLLs from libs to build folder
 bool copy_dlls_to_build(void)
@@ -73,6 +58,47 @@ bool copy_dlls_to_build(void)
     return result;
 }
 
+// Function to build miniaudio static library
+bool build_miniaudio_lib(bool debug_build, bool x64_build, bool release_build)
+{
+    // Check if miniaudio implementation file exists
+    const char *miniaudio_impl = SRC_FOLDER "audio/miniaudio.c";
+    if (!nob_file_exists(miniaudio_impl))
+    {
+        nob_log(NOB_ERROR, "miniaudio implementation file not found: %s", miniaudio_impl);
+        return false;
+    }
+
+    Nob_Cmd cmd = {0};
+
+    // Compile to object file
+    nob_cmd_append(&cmd, "gcc");
+    if (x64_build)
+        nob_cmd_append(&cmd, "-m64");
+    nob_cmd_append(&cmd, "-Wall", "-Wextra", "-std=c99");
+
+    if (debug_build)
+    {
+        nob_cmd_append(&cmd, "-g", "-O0", "-DDEBUG");
+    }
+    else if (release_build)
+    {
+        nob_cmd_append(&cmd, "-O2", "-DNDEBUG");
+    }
+
+    nob_cmd_append(&cmd, "-c", miniaudio_impl, "-o", LIBS_FOLDER "miniaudio.o");
+
+    nob_log(NOB_INFO, "Compiling miniaudio to object file...");
+    if (!nob_cmd_run_sync_and_reset(&cmd))
+        return false;
+
+    // Create static library
+    nob_cmd_append(&cmd, "ar", "rcs", LIBS_FOLDER "libminiaudio.a", LIBS_FOLDER "miniaudio.o");
+
+    nob_log(NOB_INFO, "Creating miniaudio static library...");
+    return nob_cmd_run_sync_and_reset(&cmd);
+}
+
 // Function to build UI application
 bool build_ui(bool debug_build, bool x64_build, bool release_build)
 {
@@ -110,13 +136,12 @@ bool build_ui(bool debug_build, bool x64_build, bool release_build)
     }
 
     // Include directories
-    nob_cmd_append(&cmd, "-Iinclude", "-Idevice", "-Iassets", "-Ipthread", "-Iui");
+    nob_cmd_append(&cmd, "-Iinclude", "-Iassets", "-Ipthread", "-Iui");
 
     // Library directories
     nob_cmd_append(&cmd, "-Llibs");
 
     // Source files
-    nob_cmd_append(&cmd, DEVICE_FOLDER "winaudio.c");
     nob_cmd_append(&cmd, SRC_FOLDER "assets/instruments.c");
     nob_cmd_append(&cmd, SRC_FOLDER "core/core.c");
     nob_cmd_append(&cmd, SRC_FOLDER "core/voice.c");
@@ -139,6 +164,7 @@ bool build_ui(bool debug_build, bool x64_build, bool release_build)
     // Raylib and system libraries
     nob_cmd_append(&cmd, "-lm");
 
+    nob_cmd_append(&cmd, "-lminiaudio");
     nob_cmd_append(&cmd, "-lraylib");
     nob_cmd_append(&cmd, "-lgdi32");
     nob_cmd_append(&cmd, "-lwinmm");      // Windows multimedia
@@ -152,20 +178,20 @@ bool build_ui(bool debug_build, bool x64_build, bool release_build)
     return result;
 }
 
-// Function to build example application
-bool build_example(const char *example_name, bool debug_build, bool x64_build, bool release_build)
+// Function to build tests application
+bool build_tests(const char *tests_name, bool debug_build, bool x64_build, bool release_build)
 {
-    // Check if example file exists
-    Nob_String_Builder example_path = {0};
-    nob_sb_append_cstr(&example_path, EXAMPLES_FOLDER);
-    nob_sb_append_cstr(&example_path, example_name);
-    nob_sb_append_cstr(&example_path, ".c");
-    nob_sb_append_null(&example_path);
+    // Check if tests file exists
+    Nob_String_Builder tests_path = {0};
+    nob_sb_append_cstr(&tests_path, tests_FOLDER);
+    nob_sb_append_cstr(&tests_path, tests_name);
+    nob_sb_append_cstr(&tests_path, ".c");
+    nob_sb_append_null(&tests_path);
 
-    if (!nob_file_exists(example_path.items))
+    if (!nob_file_exists(tests_path.items))
     {
-        nob_log(NOB_ERROR, "Example file not found: %s", example_path.items);
-        nob_sb_free(example_path);
+        nob_log(NOB_ERROR, "tests file not found: %s", tests_path.items);
+        nob_sb_free(tests_path);
         return false;
     }
 
@@ -194,13 +220,12 @@ bool build_example(const char *example_name, bool debug_build, bool x64_build, b
     }
 
     // Include directories
-    nob_cmd_append(&cmd, "-Iinclude", "-Idevice", "-Iassets", "-Ipthread");
+    nob_cmd_append(&cmd, "-Iinclude", "-Iassets", "-Ipthread");
 
     // Library directories
     nob_cmd_append(&cmd, "-Llibs");
 
     // Source files
-    nob_cmd_append(&cmd, DEVICE_FOLDER "winaudio.c");
     nob_cmd_append(&cmd, SRC_FOLDER "assets/instruments.c");
     nob_cmd_append(&cmd, SRC_FOLDER "core/core.c");
     nob_cmd_append(&cmd, SRC_FOLDER "core/voice.c");
@@ -209,27 +234,28 @@ bool build_example(const char *example_name, bool debug_build, bool x64_build, b
     nob_cmd_append(&cmd, SRC_FOLDER "oscillators/oscillators.c");
     nob_cmd_append(&cmd, SRC_FOLDER "utils/note_table.c");
 
-    // Example file
-    nob_cmd_append(&cmd, example_path.items);
+    // tests file
+    nob_cmd_append(&cmd, tests_path.items);
 
     // Libraries
+    nob_cmd_append(&cmd, "-lminiaudio", "-lwinmm", "-lpthreadVC2");
     nob_cmd_append(&cmd, "-lwinmm", "-lpthreadVC2");
 
     // Output file
     Nob_String_Builder output_path = {0};
     nob_sb_append_cstr(&output_path, BUILD_FOLDER);
-    nob_sb_append_cstr(&output_path, example_name);
+    nob_sb_append_cstr(&output_path, tests_name);
     nob_sb_append_cstr(&output_path, ".exe");
     nob_sb_append_null(&output_path);
 
     nob_cmd_append(&cmd, "-o", output_path.items);
 
     // Execute compilation
-    nob_log(NOB_INFO, "Building %s...", example_name);
+    nob_log(NOB_INFO, "Building %s...", tests_name);
     bool result = nob_cmd_run_sync_and_reset(&cmd);
 
     // Cleanup
-    nob_sb_free(example_path);
+    nob_sb_free(tests_path);
     nob_sb_free(output_path);
 
     return result;
@@ -242,9 +268,9 @@ void print_usage(const char *program_name)
     nob_log(NOB_INFO, "");
     nob_log(NOB_INFO, "Targets:");
     nob_log(NOB_INFO, "  ui                  Build QSynth UI application");
-    nob_log(NOB_INFO, "  <example_name>      Build specific example");
+    nob_log(NOB_INFO, "  <tests_name>      Build specific tests");
     nob_log(NOB_INFO, "");
-    nob_log(NOB_INFO, "Examples:");
+    nob_log(NOB_INFO, "tests:");
     nob_log(NOB_INFO, "  %s ui", program_name);
     nob_log(NOB_INFO, "  %s instruments_test", program_name);
     nob_log(NOB_INFO, "  %s basic_synth", program_name);
@@ -303,6 +329,20 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    // Build miniaudio static library first
+    if (!nob_file_exists(LIBS_FOLDER "libminiaudio.a"))
+    {
+        nob_log(NOB_INFO, "Building miniaudio static library...");
+        if (!build_miniaudio_lib(debug_build, x64_build, release_build))
+        {
+            nob_log(NOB_ERROR, "Failed to build miniaudio library!");
+            return 1;
+        }
+        nob_delete_file(LIBS_FOLDER "miniaudio.o");
+    } else {
+        printf("miniaudio static library already exist. skip compiling.\n");
+    }
+
     bool build_success = false;
 
     // Check if target is UI
@@ -319,12 +359,12 @@ int main(int argc, char **argv)
     }
     else
     {
-        // Build example
-        build_success = build_example(target, debug_build, x64_build, release_build);
+        // Build tests
+        build_success = build_tests(target, debug_build, x64_build, release_build);
 
         if (build_success)
         {
-            nob_log(NOB_INFO, "Example build successful!");
+            nob_log(NOB_INFO, "tests build successful!");
             nob_log(NOB_INFO, "Executable: %s%s.exe", BUILD_FOLDER, target);
             nob_log(NOB_INFO, "To run: cd %s && ./%s.exe", BUILD_FOLDER, target);
         }

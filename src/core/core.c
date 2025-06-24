@@ -37,15 +37,18 @@ static int set_error(QSynthError error)
     return 0;
 }
 
-static void audio_callback(void *user_data, int16_t *output_buffer, int frame_count)
+static void audio_callback(ma_device *pDevice, void *pOutput, const void *pInput, ma_uint32 frameCount)
 {
+    (void *)pInput;
+
     // in our case, frame_count*channel is always AUDIO_BUFFER_SIZE
-    Synthesizer *synth = (Synthesizer *)user_data;
+    Synthesizer *synth = (Synthesizer *)(pDevice->pUserData);
+    int16_t *output_buffer = (int16_t *)pOutput;
 
     if (!synth)
         return;
 
-    for (int i = 0; i < frame_count; i++)
+    for (ma_uint32 i = 0; i < frameCount; i++)
     {
         double left_mix = 0.0, right_mix = 0.0;
         synth->voice_active = 0;
@@ -185,23 +188,21 @@ bool synth_init(Synthesizer **synth_ptr, double sample_rate, int channels)
     *synth_ptr = synth;
 
     // init audio device
-    AudioConfig config = {
-        .sample_rate = sample_rate,
-        .channels = channels,
-        .buffer_size = AUDIO_FRAME_PER_READ,
-        .user_data = synth,
-        .callback = audio_callback,
-    };
+    ma_device_config deviceConfig;
 
-    // init audio device
-    synth->device = (AudioDevice){0};
+    deviceConfig = ma_device_config_init(ma_device_type_playback);
+    deviceConfig.playback.format = ma_format_s16;
+    deviceConfig.playback.channels = channels;
+    deviceConfig.sampleRate = sample_rate;
+    deviceConfig.dataCallback = audio_callback;
+    deviceConfig.pUserData = synth;
 
-    if (!audio_device_init(&synth->device, &config))
+    ma_result ret = ma_device_init(NULL, &deviceConfig, &synth->device);
+
+    if (ret != MA_SUCCESS)
     {
-        printf("Failed to init device: %s\n",
-               audio_device_get_error_string(audio_device_get_last_error()));
         set_error(QSYNTH_ERROR_DEVICE);
-        synth_cleanup(synth);
+        printf("audio device init failed: %s\n", ma_result_description(ret));
         return false;
     }
 
@@ -218,7 +219,6 @@ bool synth_init(Synthesizer **synth_ptr, double sample_rate, int channels)
     synth->delta_time = 1.0 / sample_rate;
 
     // init state
-    synth->device.is_playing = false;
     synth->samples_played = 0;
     synth->voice_dp_generator_running = false;
     synth->voice_active = 0;
@@ -236,7 +236,7 @@ void synth_cleanup(Synthesizer *synth)
         return;
 
     synth_stop(synth);
-    audio_device_cleanup(&synth->device);
+    ma_device_uninit(&synth->device);
 
     free(synth);
     printf("QSynth cleaned up\n");
@@ -244,11 +244,11 @@ void synth_cleanup(Synthesizer *synth)
 
 bool synth_start(Synthesizer *synth)
 {
-    if (!audio_device_start(&synth->device))
+    ma_result ret = ma_device_start(&synth->device);
+
+    if (ret != MA_SUCCESS)
     {
-        printf("Failed to start audio: %s\n",
-               audio_device_get_error_string(audio_device_get_last_error()));
-        audio_device_cleanup(&synth->device);
+        printf("Failed to start audio: %s\n", ma_result_description(ret));
         return false;
     }
 
@@ -272,20 +272,16 @@ bool synth_start(Synthesizer *synth)
     }
     printf("Voice DP generator threads(%zu) created\n", sizeof(voice_dp_generator_workers) / sizeof(pthread_t));
 
-    synth->device.is_playing = true;
     printf("Audio playback started\n");
     return true;
 }
 
 void synth_stop(Synthesizer *synth)
 {
-    if (!synth || !synth->device.is_playing)
-    {
+    if (!synth)
         return;
-    }
 
-    audio_device_stop(&synth->device);
-    synth->device.is_playing = false;
+    ma_device_stop(&synth->device);
 
     printf("waiting for voice DP generator thread to finish...\n");
     synth->voice_dp_generator_running = false;
@@ -302,6 +298,9 @@ void synth_stop(Synthesizer *synth)
 
 QSynthStat synth_get_stat(Synthesizer *synth)
 {
+
+    ma_device_state device_state = ma_device_get_state(&synth->device);
+
     return (QSynthStat){
         .frame_per_read = AUDIO_FRAME_PER_READ,
         .latency_ms = (int)synth->latency_ms,
@@ -311,6 +310,7 @@ QSynthStat synth_get_stat(Synthesizer *synth)
         .sample_processed = synth->samples_played,
         .voice_active = synth->voice_active,
         .voice_buffer = VOICE_BUFFER_SIZE,
+        .device_state = (QSynthDeviceState)device_state,
     };
 }
 
@@ -321,11 +321,9 @@ void synth_print_stat(Synthesizer *synth)
         printf("Synthesizer not initialized\n");
         return;
     }
+
     printf("=== QSynth Statistics ===\n");
-    printf("Sample Rate: %.1f Hz\n", synth->device.config.sample_rate);
-    printf("Channels: %d\n", synth->device.config.channels);
     printf("Voices Active: %d\n", MAX_VOICE_ACTIVE);
-    printf("Buffer Size: %d frames\n", synth->device.config.buffer_size);
     printf("Master Volume: %.2f\n", synth->master_volume);
     printf("Samples Played: %d\n", synth->samples_played);
     printf("Latency: %dms\n", (int)synth->latency_ms);
@@ -370,7 +368,7 @@ int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteControlMo
             voice->pan = cfg->pan;
             voice->control_mode = control_mode;
 
-            voice_start(voice, synth->device.config.sample_rate);
+            voice_start(voice, synth->device.sampleRate);
 
             printf("Started voice %d: note=%d, freq=%.2f, amp=%.2f\n", i, cfg->midi_note, frequency, cfg->amplitude);
             return i;

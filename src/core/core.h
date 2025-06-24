@@ -2,12 +2,11 @@
 
 #include <stdbool.h>
 
-#include "audio_device.h"
 #include "qsynth.h"
-
 #include "stream.h"
-
 #include "voice.h"
+
+#include "../audio/miniaudio.h"
 
 #include "../filters/biquad.h"
 
@@ -25,9 +24,7 @@
 struct Synthesizer
 {
     // Audio system
-    // short *audioBuffers[2];
-    // unsigned char buffer_state; // [next_buffer_idx]
-    AudioDevice device;
+    ma_device device;
 
     // Voice management
     Voice voices[MAX_VOICE_ACTIVE];

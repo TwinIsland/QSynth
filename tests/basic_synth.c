@@ -46,7 +46,7 @@ int main()
         NoteCfg cfg = (NoteCfg){
             .amplitude = 1,
             .duration_ms = 1000,
-            .midi_note = 60,
+            .midi_note = melody[i],
             .pan = 0.5,
         };
 
