@@ -432,4 +432,6 @@ $RECYCLE.BIN/
 *.lnk
 
 build/
+
+*.old
 # End of https://www.toptal.com/developers/gitignore/api/c,windows,vs
