@@ -308,9 +308,9 @@ typedef struct {
 
 ## Available Pedals
 
-- `PEDAL_REVERB` - reverb pedal
-- `PEDAL_DISTORTION` - Warm bass sound
-- `PEDAL_PHASER` - Atmospheric pad
+- `PEDAL_REVERB` - Reverb pedal
+- `PEDAL_DISTORTION` - Distortion pedal
+- `PEDAL_PHASER` - Phaser pedal
 
 ## Build Options
 
