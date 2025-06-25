@@ -8,11 +8,9 @@
 #include "instruments.h"
 
 #include "../assets/instruments_core.h"
+#include "../assets/pedal_core.h"
 #include "../utils/note_table.h"
 
-#ifdef _WIN32
-#define _TIMESPEC_DEFINED
-#endif
 #include "pthread.h"
 
 #ifdef _WIN32
@@ -30,6 +28,8 @@ static inline uint64_t GET_TIME_MS()
 
 static QSynthError g_last_error = QSYNTH_ERROR_NONE;
 pthread_t voice_dp_generator_workers[MAX_VOICE_ACTIVE];
+pthread_t voice_mix_worker;
+pthread_t pedal_dp_generator_workers;
 
 static int set_error(QSynthError error)
 {
@@ -39,7 +39,7 @@ static int set_error(QSynthError error)
 
 static void audio_callback(ma_device *pDevice, void *pOutput, const void *pInput, ma_uint32 frameCount)
 {
-    (void *)pInput;
+    (void)pInput;
 
     // in our case, frame_count*channel is always AUDIO_BUFFER_SIZE
     Synthesizer *synth = (Synthesizer *)(pDevice->pUserData);
@@ -51,38 +51,30 @@ static void audio_callback(ma_device *pDevice, void *pOutput, const void *pInput
     for (ma_uint32 i = 0; i < frameCount; i++)
     {
         double left_mix = 0.0, right_mix = 0.0;
-        synth->voice_active = 0;
 
-        // process all voices for this sample
-        for (int v = 0; v < MAX_VOICE_ACTIVE; v++)
+        AudioStreamBuffer *out_stream = &synth->voice_mix_streamer;
+
+        // update out stream to be pedal if set
+        if (pedal_chain_size(synth->pedalchain) != 0)
+            out_stream = &synth->pedalchain->streamer;
+
+        if (stream_available(out_stream) < 2)
         {
-            Voice *voice = &synth->voices[v];
-            if (!voice->active)
-                continue;
-
-            if (stream_available(&voice->streamer) == 0)
-            {
-                uint64_t start_time = GET_TIME_MS();
-                while (stream_available(&voice->streamer) == 0)
-                    ;
-                synth->latency_ms += GET_TIME_MS() - start_time;
-            }
-
-            double sample = stream_readDouble(&voice->streamer);
-
-            // apply panning
-            double left_gain = 1.0 - voice->pan;
-            double right_gain = voice->pan;
-
-            left_mix += sample * left_gain;
-            right_mix += sample * right_gain;
-            synth->voice_active++;
-            synth->samples_played++;
+            uint64_t start_time = GET_TIME_MS();
+            while (stream_available(out_stream) < 2)
+                ;
+            synth->latency_ms += GET_TIME_MS() - start_time;
         }
+
+        left_mix = stream_readDouble(out_stream);
+        right_mix = stream_readDouble(out_stream);
 
         // apply master volume and clamp
         left_mix *= synth->master_volume;
         right_mix *= synth->master_volume;
+
+        if (left_mix != 0.0 || right_mix != 0.0)
+            synth->samples_played++;
 
         if (left_mix > 1.0)
             left_mix = 1.0;
@@ -129,9 +121,93 @@ static void *voice_dp_generator(void *arg)
         if (voice->active && stream_fillRatio(&voice->streamer) <= VOICE_BUFFER_REFILL_THRESHOLD)
         {
             int refill_count = 0;
-            while (stream_space(&voice->streamer) > 0 && refill_count++ < REFILL_CHUNK_SIZE)
+            while (stream_space(&voice->streamer) > 0 && refill_count++ < VOICE_REFILL_CHUNK_SIZE)
             {
                 stream_writeDouble(&voice->streamer, voice_step(voice, synth->delta_time));
+            }
+        }
+        SLEEP_MS(1);
+    }
+
+    return NULL;
+}
+
+static void *voice_mix_generator(void *arg)
+{
+    Synthesizer *synth = (Synthesizer *)arg;
+
+    if (!synth)
+        return NULL;
+
+    while (synth->voice_mix_generator_running)
+    {
+
+        if (stream_fillRatio(&synth->voice_mix_streamer) <= VOICE_MIX_BUFFER_REFILL_THRESHOLD)
+        {
+            int refill_count = 0;
+            while (stream_space(&synth->voice_mix_streamer) >= 2 && refill_count++ < VOICE_MIX_REFILL_CHUNK_SIZE)
+            {
+                double left_mix = 0.0, right_mix = 0.0;
+                int voice_active = 0;
+
+                for (int v = 0; v < MAX_VOICE_ACTIVE; v++)
+                {
+                    Voice *voice = &synth->voices[v];
+                    if (!voice->active)
+                        continue;
+
+                    voice_active++;
+
+                    while (voice->active && stream_available(&voice->streamer) == 0)
+                        ;
+
+                    double sample = stream_readDouble(&voice->streamer);
+
+                    // apply panning
+                    double left_gain = 1.0 - voice->pan;
+                    double right_gain = voice->pan;
+
+                    left_mix += sample * left_gain;
+                    right_mix += sample * right_gain;
+                }
+
+                synth->voice_active = voice_active;
+
+                stream_writeDouble(&synth->voice_mix_streamer, left_mix);
+                stream_writeDouble(&synth->voice_mix_streamer, right_mix);
+            }
+        }
+
+        SLEEP_MS(1);
+    }
+
+    return NULL;
+}
+
+static void *pedal_dp_generator(void *arg)
+{
+    Synthesizer *synth = (Synthesizer *)arg;
+
+    if (!synth)
+        return NULL;
+
+    while (synth->pedal_dp_generator_running)
+    {
+        if (synth->pedalchain && stream_fillRatio(&synth->pedalchain->streamer) <= PEDALCHAIN_BUFFER_REFILL_THRESHOLD)
+        {
+            int refill_count = 0;
+            while (stream_space(&synth->pedalchain->streamer) >= 2 && refill_count++ < PEDALCHAIN_REFILL_CHUNK_SIZE)
+            {
+                while (stream_available(&synth->voice_mix_streamer) < 2)
+                    ;
+
+                double sample_left = stream_readDouble(&synth->voice_mix_streamer);
+                double sample_right = stream_readDouble(&synth->voice_mix_streamer);
+
+                pedal_chain_process(synth->pedalchain, &sample_left, &sample_right);
+
+                stream_writeDouble(&synth->pedalchain->streamer, sample_left);
+                stream_writeDouble(&synth->pedalchain->streamer, sample_right);
             }
         }
         SLEEP_MS(1);
@@ -145,6 +221,12 @@ static bool synth_precheck(double sample_rate, int channels)
     if (!(VOICE_BUFFER_SIZE > 0 && (VOICE_BUFFER_SIZE & (VOICE_BUFFER_SIZE - 1)) == 0))
     {
         printf("VOICE_BUFFER_SIZE must be a power of 2\n");
+        set_error(QSYNTH_ERROR_CONFIG);
+        return false;
+    }
+    if (!(VOICE_MIX_BUFFER_SIZE > 0 && (VOICE_MIX_BUFFER_SIZE & (VOICE_MIX_BUFFER_SIZE - 1)) == 0))
+    {
+        printf("VOICE_MIX_BUFFER_SIZE must be a power of 2\n");
         set_error(QSYNTH_ERROR_CONFIG);
         return false;
     }
@@ -212,15 +294,23 @@ bool synth_init(Synthesizer **synth_ptr, double sample_rate, int channels)
         voice_init(&synth->voices[i]);
     }
 
+    // init voice mix streamer
+    stream_init(&synth->voice_mix_streamer, synth->voice_mix_buf, VOICE_MIX_BUFFER_SIZE);
+
     // init global settings
     synth->master_volume = 0.5;
 
     // pre-compute attributes
     synth->delta_time = 1.0 / sample_rate;
 
+    // init pedal chain
+    pedal_chain_create(&synth->pedalchain);
+
     // init state
     synth->samples_played = 0;
     synth->voice_dp_generator_running = false;
+    synth->voice_mix_generator_running = false;
+    synth->pedal_dp_generator_running = false;
     synth->voice_active = 0;
 
     memset(synth->recent_samples, 0, sizeof(synth->recent_samples));
@@ -235,8 +325,43 @@ void synth_cleanup(Synthesizer *synth)
     if (!synth)
         return;
 
-    synth_stop(synth);
+    if (ma_device_is_started(&synth->device))
+        synth_stop(synth);
+
+    // join pedal dp generator thread
+    printf("waiting for pedal DP generator thread to finish...\n");
+    if (synth->pedal_dp_generator_running)
+    {
+        synth->pedal_dp_generator_running = false;
+        pthread_join(pedal_dp_generator_workers, NULL);
+    }
+    printf("pedal DP generator thread exiting\n");
+
+    // join voice mix thread
+    printf("waiting for voice mix generator thread to finish...\n");
+    if (synth->voice_mix_generator_running)
+    {
+        synth->voice_mix_generator_running = false;
+        pthread_join(voice_mix_worker, NULL);
+    }
+    printf("Voice mix generator thread exiting\n");
+
+    // join voice dp generator threadas
+    printf("waiting for voice DP generator thread to finish...\n");
+    if (synth->voice_dp_generator_running)
+    {
+        synth->voice_dp_generator_running = false;
+        for (int i = 0; i < MAX_VOICE_ACTIVE; i++)
+        {
+            pthread_join(voice_dp_generator_workers[i], NULL);
+        }
+    }
+    printf("Voice DP generator thread exiting\n");
+
     ma_device_uninit(&synth->device);
+
+    // destory pedals and pedal chain
+    pedal_chain_destroy(synth->pedalchain, true);
 
     free(synth);
     printf("QSynth cleaned up\n");
@@ -252,8 +377,8 @@ bool synth_start(Synthesizer *synth)
         return false;
     }
 
-    synth->voice_dp_generator_running = true;
     // start voice DP generator thread
+    synth->voice_dp_generator_running = true;
     for (int i = 0; i < MAX_VOICE_ACTIVE; i++)
     {
         struct voice_dp_generator_args *args = malloc(sizeof(struct voice_dp_generator_args));
@@ -272,6 +397,30 @@ bool synth_start(Synthesizer *synth)
     }
     printf("Voice DP generator threads(%zu) created\n", sizeof(voice_dp_generator_workers) / sizeof(pthread_t));
 
+    // start voice mix worker
+    synth->voice_mix_generator_running = true;
+    if (pthread_create(&voice_mix_worker, NULL, voice_mix_generator, synth) != 0)
+    {
+        printf("Failed to create voice mix worker thread\n");
+        synth_cleanup(synth);
+
+        set_error(QSYNTH_ERROR_WORKER);
+        return false;
+    }
+    printf("Voice Mix generator threads created\n");
+
+    // start pedal DP generator worker
+    synth->pedal_dp_generator_running = true;
+    if (pthread_create(&pedal_dp_generator_workers, NULL, pedal_dp_generator, synth) != 0)
+    {
+        printf("Failed to create pedal DP generator thread\n");
+        synth_cleanup(synth);
+
+        set_error(QSYNTH_ERROR_WORKER);
+        return false;
+    }
+    printf("pedal DP generator threads created\n");
+
     printf("Audio playback started\n");
     return true;
 }
@@ -283,17 +432,7 @@ void synth_stop(Synthesizer *synth)
 
     ma_device_stop(&synth->device);
 
-    printf("waiting for voice DP generator thread to finish...\n");
-    synth->voice_dp_generator_running = false;
-
-    for (int i = 0; i < MAX_VOICE_ACTIVE; i++)
-    {
-        pthread_join(voice_dp_generator_workers[i], NULL);
-    }
-
-    printf("Voice DP generator thread exiting\n");
-
-    printf("Audio playback ended\n");
+    printf("qsynth stop.\n");
 }
 
 QSynthStat synth_get_stat(Synthesizer *synth)
@@ -385,12 +524,148 @@ void synth_end_note(Synthesizer *synth, int voice_id)
     voice_end(&synth->voices[voice_id]);
 }
 
-int synth_set_master_volume(Synthesizer *synth, double volume)
+int synth_pedalchain_append(Synthesizer *synth, PedalType pedal)
+{
+    if (!synth || !synth->pedalchain)
+    {
+        set_error(QSYNTH_ERROR_UNINIT);
+        return -1;
+    }
+
+    Pedal *new_pedal = NULL;
+    pedal_create(&new_pedal, pedal, synth->device.sampleRate);
+    int pedal_id = pedal_chain_append(synth->pedalchain, new_pedal);
+    if (pedal_id == -1)
+    {
+        printf("WARNING: pedal append failed!\n");
+        pedal_destroy(new_pedal);
+        return -1;
+    }
+    printf("pedal append %d\n", pedal);
+
+    return pedal_id;
+}
+
+int synth_pedalchain_insert(Synthesizer *synth, int idx, PedalType pedal)
+{
+    if (!synth || !synth->pedalchain)
+    {
+        set_error(QSYNTH_ERROR_UNINIT);
+        return -1;
+    }
+
+    Pedal *new_pedal = NULL;
+    pedal_create(&new_pedal, pedal, synth->device.sampleRate);
+
+    bool ret = pedal_chain_insert(synth->pedalchain, idx, new_pedal);
+
+    if (!ret)
+    {
+        printf("WARNING: pedal insert failed!\n");
+        pedal_destroy(new_pedal);
+        return -1;
+    }
+    return idx;
+}
+
+bool synth_pedalchain_swap(Synthesizer *synth, int idx1, int idx2)
+{
+    if (!synth || !synth->pedalchain)
+    {
+        set_error(QSYNTH_ERROR_UNINIT);
+        return -1;
+    }
+
+    bool ret = pedal_chain_swap(synth->pedalchain, idx1, idx2);
+    if (!ret)
+        printf("WARNING: pedal swap failed!\n");
+
+    return ret;
+}
+
+bool synth_pedalchain_remove(Synthesizer *synth, int idx)
+{
+    if (!synth || !synth->pedalchain)
+    {
+        set_error(QSYNTH_ERROR_UNINIT);
+        return -1;
+    }
+
+    bool ret = pedal_chain_remove(synth->pedalchain, idx);
+    if (!ret)
+        printf("WARNING: pedal (%d) remove failed!\n", idx);
+
+    printf("pedal remove %d\n", idx);
+
+    return ret;
+}
+
+size_t synth_pedalchain_size(Synthesizer *synth)
+{
+    if (!synth || !synth->pedalchain)
+    {
+        set_error(QSYNTH_ERROR_UNINIT);
+        return -1;
+    }
+
+    return pedal_chain_size(synth->pedalchain);
+}
+
+void synth_pedalchain_print(Synthesizer *synth)
+{
+    if (!synth || !synth->pedalchain)
+    {
+        set_error(QSYNTH_ERROR_UNINIT);
+        printf("pedalchain print failed due to uninitialized\n");
+        return;
+    }
+    pedal_chain_print(synth->pedalchain);
+}
+
+PedalType synth_pedalchain_get(Synthesizer *synth, int idx)
+{
+    if (!synth || !synth->pedalchain)
+    {
+        set_error(QSYNTH_ERROR_UNINIT);
+        printf("pedalchain print failed due to uninitialized\n");
+        return -1;
+    }
+    PedalNode *node = pedal_chain_get(synth->pedalchain, idx);
+    if (!node)
+    {
+        return -1;
+    }
+    return node->pedal->type;
+}
+
+PedalInfo synth_pedal_info(Synthesizer *synth, PedalType pedal)
+{
+    if (!synth || !synth->pedalchain)
+    {
+        set_error(QSYNTH_ERROR_UNINIT);
+        printf("pedalchain print failed due to uninitialized\n");
+        return (PedalInfo){.name = "unknown"};
+    }
+    const PedalConfig *cfg = pedal_get_cfg(pedal);
+    PedalInfo info = (PedalInfo){
+        .category = cfg->category,
+        .description = cfg->description,
+        .name = cfg->name,
+        .param_n = cfg->param_n,
+    };
+
+    memcpy(info.param_default, cfg->param_default, sizeof(info.param_default));
+    memcpy(info.param_description, cfg->param_description, sizeof(info.param_description));
+
+    return info;
+}
+
+double synth_set_master_volume(Synthesizer *synth, double volume)
 {
     if (!synth)
     {
         set_error(QSYNTH_ERROR_UNINIT);
-        return synth->master_volume;
+        return -1;
     }
 
     if (volume < 0 || volume > 1)

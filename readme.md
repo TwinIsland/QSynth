@@ -10,7 +10,8 @@ A high-performance multi-layered audio synthesizer written in C, featuring real-
 - **Multi-layered synthesis** - Up to 4 tone layers per instrument with independent waveforms and detuning
 - **Real-time audio processing** - Low-latency audio output with configurable buffer sizes  
 - **Custom Instruments** - Create custom instruments by defining synthesis parameters
-- **Cross-platform** - Windows and Linux support
+- **Effects Pedal Chain** - Add reverb, distortion, phaser and custom effects in any order
+- **Cross-platform** - Windows / Linux / MacOS support
 - **Polyphonic playback** - Up to infinite simultaneous voices with independent panning and velocity
 
 ## Quick Start
@@ -22,25 +23,18 @@ A high-performance multi-layered audio synthesizer written in C, featuring real-
    gcc build.c -o nob
    ```
 
-2. **Build examples:**
+2. **Build UI:**
    ```bash
-   # Build basic synthesizer example
-   ./nob basic_synth
-   
-   # Build instruments test
-   ./nob instruments_test
-   
-   # Build for 64-bit
-   ./nob basic_synth --x64
+   ./nob ui
    
    # Build with debug symbols
-   ./nob basic_synth --debug
+   ./nob ui --debug
    ```
 
 3. **Run:**
    ```bash
    cd build
-   ./basic_synth.exe
+   ./QSynth.exe
    ```
 
 ### Basic Usage
@@ -60,10 +54,14 @@ int main() {
     // Start audio playback
     synth_start(synth);
     
-    // Play a note with duration control
+    // Add effects to pedal chain (optional)
+    synth_pedalchain_append(synth, PEDAL_DISTORTION);
+    synth_pedalchain_append(synth, PEDAL_PHASER);
+    
+    // Play a note with effects
     NoteCfg note = {
         .midi_note = 60,        // Middle C
-        .duration_ms = 1000,    // 1 second
+        .duration_ms = 2000,    // 2 seconds
         .amplitude = 0.8,       // 80% volume
         .velocity = 1.0,        // Full velocity
         .pan = 0.5              // Center pan
@@ -71,10 +69,13 @@ int main() {
     
     synth_play_note(synth, INST_WARM_BASS, NOTE_CONTROL_DURATION, &note);
     
-    // Or play with manual control
-    int voice_id = synth_play_note(synth, INST_LEAD_SQUARE, NOTE_CONTROL_MANUAL, &note);
-    Sleep(2000);  // Hold note for 2 seconds
-    synth_end_note(synth, voice_id);  // Release note
+    // Reorder effects (swap positions)
+    synth_pedalchain_swap(synth, 0, 2);  // Swap distortion and phaser
+    
+    // Remove an effect
+    synth_pedalchain_remove(synth, 1);   // Remove middle pedal
+    
+    Sleep(3000);  // Let it play
     
     // Cleanup
     synth_stop(synth);
@@ -163,6 +164,90 @@ Add the instrument definition in `src/assets/instruments.c`:
 - **Filters**: LOWPASS, HIGHPASS, BANDPASS, or NONE
 - **Envelopes**: PLUCK, PAD, BASS, LEAD, PERCUSSION, ORGAN presets
 
+## Creating Custom Effects Pedals
+### Step 1: Declare Pedal Type
+Add your new pedal to the enum in `assets/pedal.h`:
+
+```c
+typedef enum {
+    PEDAL_REVERB = 0,
+    PEDAL_DISTORTION,
+    PEDAL_PHASER,
+    PEDAL_MY_CUSTOM_EFFECT,    // <- Add your pedal here
+    
+    PEDAL_COUNT  // total number of pedals
+} PedalType;
+```
+
+### Step 2: Implement Pedal Algorithm
+Create your pedal implementation in `src/pedals/my_custom_effect.c`:
+```c
+typedef struct {
+    // ...
+} my_effect_instance_t;
+
+// Create effect instance
+bool my_effect_create(void **instance_ptr, double sample_rate) {
+    // ...
+    return true;
+}
+
+// Destroy effect instance
+void my_effect_destroy(void *instance) {
+    // ...
+}
+
+// Process audio sample
+double my_effect_process(void *instance, double sample) {
+    // ...
+    return sample // do nothing, direct out
+}
+
+// Set effect parameters
+void my_effect_set_params(void *instance, double params[PEDAL_MAX_PARAMS]) {
+    // ...
+}
+```
+
+### Step 3: Register Pedal
+Add the pedal definition in `src/assets/pedal.c`:
+
+```c
+static const PedalConfig pedal_info_db[PEDAL_COUNT] = {
+    // ... existing pedals ...
+    
+    [PEDAL_MY_CUSTOM_EFFECT] = {
+        .name = "My Custom Effect",
+        .category = "Custom",
+        .description = "A totally awesome custom effect",
+        .param_n = 3,
+        .param_description = {
+            [0] = "Intensity (0.0-1.0)",
+            [1] = "Frequency (0.1-10.0 Hz)",
+            [2] = "Wet/Dry Mix (0.0-1.0)",
+        },
+        .param_default = {
+            [0] = 0.5,    // 50% intensity
+            [1] = 1.0,    // 1 Hz frequency
+            [2] = 0.5,    // 50% wet
+        },
+        .vtable = {
+            .pedal_create = my_effect_create,
+            .pedal_destroy = my_effect_destroy,
+            .pedal_process = my_effect_process,
+            .pedal_set_params = my_effect_set_params,
+        },
+    },
+};
+```
+
+### Pedal Implementation Guidelines
+
++ Stateful effects: Use internal buffers for delays, filters, LFOs
++ Parameter validation: Always clamp parameters to valid ranges
++ Thread safety: Each pedal instance processes independently
++ Memory management: Clean up all allocated memory in destroy function
+
 ## API Reference
 
 ### Core Functions
@@ -180,6 +265,16 @@ void synth_stop(Synthesizer* synth);
 int synth_play_note(Synthesizer* synth, InstrumentType instrument, 
                     NoteControlMode control_mode, NoteCfg *cfg);
 void synth_end_note(Synthesizer* synth, int voice_id);
+
+// Pedal chain management
+PedalInfo synth_pedal_info(Synthesizer *synth, PedalType pedal);
+int synth_pedalchain_append(Synthesizer *synth, PedalType pedal);
+int synth_pedalchain_insert(Synthesizer *synth, int idx, PedalType pedal);
+bool synth_pedalchain_swap(Synthesizer *synth, int idx1, int idx2);
+bool synth_pedalchain_remove(Synthesizer *synth, int idx);
+size_t synth_pedalchain_size(Synthesizer *synth);
+PedalType synth_pedalchain_get(Synthesizer *synth, int idx);
+void synth_pedalchain_print(Synthesizer *synth);
 
 // Configuration
 int synth_set_master_volume(Synthesizer *synth, double volume);
@@ -210,6 +305,12 @@ typedef struct {
 - `INST_WOBBLE_BASS` - Bass with filter modulation
 - `INST_BELL_LEAD` - Bell-like lead sound
 - `INST_DEEP_DRONE` - Deep drone sound
+
+## Available Pedals
+
+- `PEDAL_REVERB` - reverb pedal
+- `PEDAL_DISTORTION` - Warm bass sound
+- `PEDAL_PHASER` - Atmospheric pad
 
 ## Build Options
 

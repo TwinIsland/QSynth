@@ -123,7 +123,7 @@ bool build_ui(bool debug_build, bool x64_build, bool release_build)
     }
 
     // Warning flags
-    nob_cmd_append(&cmd, "-Wall", "-Wextra", "-std=c99", "-mwindows");
+    nob_cmd_append(&cmd, "-Wall", "-Wextra", "-std=c99");
 
     // Build type flags
     if (debug_build)
@@ -132,6 +132,7 @@ bool build_ui(bool debug_build, bool x64_build, bool release_build)
     }
     else if (release_build)
     {
+        nob_cmd_append(&cmd, "-mwindows");
         nob_cmd_append(&cmd, "-O2", "-DNDEBUG");
     }
 
@@ -142,6 +143,7 @@ bool build_ui(bool debug_build, bool x64_build, bool release_build)
     nob_cmd_append(&cmd, "-Llibs");
 
     // Source files
+    nob_cmd_append(&cmd, SRC_FOLDER "assets/pedal.c");
     nob_cmd_append(&cmd, SRC_FOLDER "assets/instruments.c");
     nob_cmd_append(&cmd, SRC_FOLDER "core/core.c");
     nob_cmd_append(&cmd, SRC_FOLDER "core/voice.c");
@@ -149,6 +151,22 @@ bool build_ui(bool debug_build, bool x64_build, bool release_build)
     nob_cmd_append(&cmd, SRC_FOLDER "filters/biquad.c");
     nob_cmd_append(&cmd, SRC_FOLDER "oscillators/oscillators.c");
     nob_cmd_append(&cmd, SRC_FOLDER "utils/note_table.c");
+    nob_cmd_append(&cmd, SRC_FOLDER "pedals/reverb.c");
+    nob_cmd_append(&cmd, SRC_FOLDER "pedals/distortion.c");
+    nob_cmd_append(&cmd, SRC_FOLDER "pedals/phaser.c");
+
+    // UI components
+    nob_cmd_append(&cmd, UI_FOLDER "ui.c");
+    nob_cmd_append(&cmd, UI_FOLDER "rayguiImp.c");
+    nob_cmd_append(&cmd, UI_FOLDER "controlPanel.c");
+    nob_cmd_append(&cmd, UI_FOLDER "pedalPanel.c");
+    nob_cmd_append(&cmd, UI_FOLDER "helpPanel.c");
+    nob_cmd_append(&cmd, UI_FOLDER "creditPanel.c");
+    nob_cmd_append(&cmd, UI_FOLDER "pianoPanel.c");
+    nob_cmd_append(&cmd, UI_FOLDER "statusBar.c");
+    nob_cmd_append(&cmd, UI_FOLDER "statusPanel.c");
+    nob_cmd_append(&cmd, UI_FOLDER "waveVisualizer.c");
+    nob_cmd_append(&cmd, UI_FOLDER "visualStyler.c");
 
     // UI main file
     nob_cmd_append(&cmd, ui_main_file);
@@ -226,6 +244,7 @@ bool build_tests(const char *tests_name, bool debug_build, bool x64_build, bool 
     nob_cmd_append(&cmd, "-Llibs");
 
     // Source files
+    nob_cmd_append(&cmd, SRC_FOLDER "assets/pedal.c");
     nob_cmd_append(&cmd, SRC_FOLDER "assets/instruments.c");
     nob_cmd_append(&cmd, SRC_FOLDER "core/core.c");
     nob_cmd_append(&cmd, SRC_FOLDER "core/voice.c");
@@ -233,6 +252,9 @@ bool build_tests(const char *tests_name, bool debug_build, bool x64_build, bool 
     nob_cmd_append(&cmd, SRC_FOLDER "filters/biquad.c");
     nob_cmd_append(&cmd, SRC_FOLDER "oscillators/oscillators.c");
     nob_cmd_append(&cmd, SRC_FOLDER "utils/note_table.c");
+    nob_cmd_append(&cmd, SRC_FOLDER "pedals/reverb.c");
+    nob_cmd_append(&cmd, SRC_FOLDER "pedals/distortion.c");
+    nob_cmd_append(&cmd, SRC_FOLDER "pedals/phaser.c");
 
     // tests file
     nob_cmd_append(&cmd, tests_path.items);
@@ -339,7 +361,9 @@ int main(int argc, char **argv)
             return 1;
         }
         nob_delete_file(LIBS_FOLDER "miniaudio.o");
-    } else {
+    }
+    else
+    {
         printf("miniaudio static library already exist. skip compiling.\n");
     }
 

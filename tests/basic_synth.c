@@ -14,16 +14,20 @@ int main()
 
     if (!synth_start(synth))
     {
-        printf(synth_get_error_string(synth_get_last_error()));
+        printf("Failed to start synthesizer: %s\n",
+               synth_get_error_string(synth_get_last_error()));
+        synth_cleanup(synth);
         return 1;
     }
+
+    synth_pedalchain_append(synth, PEDAL_PHASER);
 
     int melody[] = {60, 64, 67, 72, 67, 64, 60};
 
     for (int i = 0; i < 7; i++)
     {
         NoteCfg cfg = (NoteCfg){
-            .amplitude = 1,
+            .amplitude = 0.5f,
             .midi_note = melody[i],
             .pan = 0.5,
         };
@@ -35,17 +39,19 @@ int main()
             printf(synth_get_error_string(synth_get_last_error()));
         }
 
-        Sleep(1000);
+        Sleep(400);
 
         synth_end_note(synth, voice);
     }
+
+    // synth_pedalchain_print(synth);
 
     printf("\nduration control mode test\n");
     for (int i = 0; i < 7; i++)
     {
         NoteCfg cfg = (NoteCfg){
             .amplitude = 1,
-            .duration_ms = 1000,
+            .duration_ms = 400,
             .midi_note = melody[i],
             .pan = 0.5,
         };
@@ -56,7 +62,7 @@ int main()
         {
             printf(synth_get_error_string(synth_get_last_error()));
         }
-        Sleep(1000);
+        Sleep(400);
     }
 
     synth_print_stat(synth);

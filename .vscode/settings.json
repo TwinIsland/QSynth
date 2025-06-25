@@ -23,6 +23,27 @@
         "mmsystem.h": "c",
         "biquad.h": "c",
         "style_cyber.h": "c",
-        "miniaudio.h": "c"
+        "miniaudio.h": "c",
+        "stream.h": "c",
+        "reverb.h": "c",
+        "pedal.h": "c",
+        "atomic": "c",
+        "bit": "c",
+        "compare": "c",
+        "cstddef": "c",
+        "deque": "c",
+        "iterator": "c",
+        "limits": "c",
+        "memory": "c",
+        "xlocale": "c",
+        "xmemory": "c",
+        "xstring": "c",
+        "xutility": "c",
+        "stdbool.h": "c",
+        "time.h": "c",
+        "distortion.h": "c",
+        "ui.h": "c",
+        "raygui.h": "c",
+        "pedal_core.h": "c"
     }
 }

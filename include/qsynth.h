@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "instruments.h"
+#include "pedal.h"
 
 typedef struct Synthesizer Synthesizer;
 
@@ -13,8 +14,18 @@ typedef struct Synthesizer Synthesizer;
 
 #define VOICE_BUFFER_SIZE 8192
 #define VOICE_BUFFER_REFILL_THRESHOLD 0.5
-#define REFILL_CHUNK_SIZE 8192
-#define MAX_VOICE_ACTIVE 16
+#define VOICE_REFILL_CHUNK_SIZE 8192
+#define MAX_VOICE_ACTIVE 12
+
+#define VOICE_MIX_BUFFER_SIZE 1024
+#define VOICE_MIX_BUFFER_REFILL_THRESHOLD 0.5
+#define VOICE_MIX_REFILL_CHUNK_SIZE 1024
+
+#define PEDALCHAIN_BUFFER_SIZE 1024
+#define PEDALCHAIN_BUFFER_REFILL_THRESHOLD 0.5
+#define PEDALCHAIN_REFILL_CHUNK_SIZE 1024
+
+// #define REFILL_CHUNK_SIZE 8192
 
 typedef enum
 {
@@ -80,7 +91,18 @@ int synth_play_note(Synthesizer *synth, InstrumentType instrument, NoteControlMo
 void synth_end_note(Synthesizer *synth, int voice_id);
 
 // qsynth global setting
-int synth_set_master_volume(Synthesizer *synth, double volume);
+double synth_set_master_volume(Synthesizer *synth, double volume);
+
+// qsynth pedal system
+PedalInfo synth_pedal_info(Synthesizer *synth, PedalType pedal);
+int synth_pedalchain_append(Synthesizer *synth, PedalType pedal);
+int synth_pedalchain_insert(Synthesizer *synth, int idx, PedalType pedal);
+bool synth_pedalchain_swap(Synthesizer *synth, int idx1, int idx2);
+bool synth_pedalchain_remove(Synthesizer *synth, int idx);
+size_t synth_pedalchain_size(Synthesizer *synth);
+PedalType synth_pedalchain_get(Synthesizer *synth, int idx);
+void synth_pedalchain_print(Synthesizer *synth);
+
 
 // qsynth error handling
 QSynthError synth_get_last_error();
