@@ -94,15 +94,17 @@ void synth_end_note(Synthesizer *synth, int voice_id);
 double synth_set_master_volume(Synthesizer *synth, double volume);
 
 // qsynth pedal system
-PedalInfo synth_pedal_info(Synthesizer *synth, PedalType pedal);
+PedalInfo synth_pedal_info(PedalType pedal);
 int synth_pedalchain_append(Synthesizer *synth, PedalType pedal);
 int synth_pedalchain_insert(Synthesizer *synth, int idx, PedalType pedal);
 bool synth_pedalchain_swap(Synthesizer *synth, int idx1, int idx2);
 bool synth_pedalchain_remove(Synthesizer *synth, int idx);
 size_t synth_pedalchain_size(Synthesizer *synth);
-PedalType synth_pedalchain_get(Synthesizer *synth, int idx);
+PedalInfo synth_pedalchain_get(Synthesizer *synth, int idx);
 void synth_pedalchain_print(Synthesizer *synth);
-
+void synth_pedalchain_set(Synthesizer *synth, int idx, int param_idx, double new_param);
+void synth_pedalchain_set_bypass(Synthesizer *synth, int idx, bool bypass);
+bool synth_pedalchain_is_bypass(Synthesizer *synth, int idx);
 
 // qsynth error handling
 QSynthError synth_get_last_error();

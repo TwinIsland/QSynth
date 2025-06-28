@@ -16,13 +16,7 @@ typedef struct
 
 typedef struct
 {
-    const char *name;
-    const char *category;
-    const char *description;
-
-    const double param_default[PEDAL_MAX_PARAMS];
-    const char *param_description[PEDAL_MAX_PARAMS];
-    int param_n;
+    PedalInfo info;
     PedalVTable vtable;
 } PedalConfig;
 
@@ -40,16 +34,16 @@ typedef struct
 
 static inline void pedal_process(Pedal *pedal, double *left, double *right)
 {
-    if (!pedal || !pedal->pedal_instance_left || !pedal->pedal_instance_right || !left || !right)
+    if (!pedal || !pedal->pedal_instance_left || !pedal->pedal_instance_right || !left || !right || pedal->bypass)
         return;
-    
+
     *left = pedal->vtable.pedal_process(pedal->pedal_instance_left, *left);
     *right = pedal->vtable.pedal_process(pedal->pedal_instance_right, *right);
 }
 
 bool pedal_create(Pedal **pedal_ptr, PedalType type, double sample_rate);
 void pedal_destroy(Pedal *pedal);
-void pedal_set_param(Pedal *pedal, size_t param_idx, float param_val);
+void pedal_set_param(Pedal *pedal, size_t param_idx, double param_val);
 const PedalConfig *pedal_get_cfg(PedalType pedal);
 
 // pedal chain utils

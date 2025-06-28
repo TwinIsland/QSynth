@@ -44,7 +44,7 @@ void draw_pedal_panel(UIState *ui)
 
     // Add pedal section
     DrawTextEx(GuiGetFont(), "Add Pedal:",
-               (Vector2){panel_area.x + 10, y_pos}, 16, 1,
+               (Vector2){panel_area.x + 10, y_pos}, 18, 1,
                GetColor(GuiGetStyle(DEFAULT, TEXT_COLOR_NORMAL)));
     y_pos += 25;
 
@@ -75,9 +75,9 @@ void draw_pedal_panel(UIState *ui)
 
     // Chain title
     DrawTextEx(GuiGetFont(), "Current Chain:",
-               (Vector2){panel_area.x + 10, y_pos}, 16, 1,
+               (Vector2){panel_area.x + 10, y_pos}, 18, 1,
                GetColor(GuiGetStyle(DEFAULT, TEXT_COLOR_NORMAL)));
-    y_pos += 25;
+    y_pos += 30;
 
     // Draw current pedal chain vertically
     size_t chain_size = synth_pedalchain_size(ui->synth);
@@ -85,7 +85,7 @@ void draw_pedal_panel(UIState *ui)
     if (chain_size == 0)
     {
         DrawTextEx(GuiGetFont(), "No pedals",
-                   (Vector2){panel_area.x + 15, y_pos}, 14, 1, GRAY);
+                   (Vector2){panel_area.x + 15, y_pos}, 16, 2, GetColor(GuiGetStyle(DEFAULT, TEXT_COLOR_DISABLED)));
     }
     else
     {
@@ -118,20 +118,12 @@ void draw_pedal_panel(UIState *ui)
             }
 
             // Draw pedal box
-            Color pedal_color = is_this_dragging ? 
-                GetColor(GuiGetStyle(DEFAULT, BASE_COLOR_FOCUSED)) : 
-                GetColor(GuiGetStyle(DEFAULT, BASE_COLOR_NORMAL));
+            Color pedal_color = is_this_dragging ? GetColor(GuiGetStyle(DEFAULT, BASE_COLOR_FOCUSED)) : GetColor(GuiGetStyle(DEFAULT, BASE_COLOR_NORMAL));
 
             DrawRectangleRec(pedal_rect, pedal_color);
             DrawRectangleLinesEx(pedal_rect, 2, GetColor(GuiGetStyle(DEFAULT, BORDER_COLOR_NORMAL)));
 
-            PedalType pedal_type = synth_pedalchain_get(ui->synth, i);
-            const char *name = "Unknown";
-
-            if (pedal_type >= 0 && pedal_type < PEDAL_COUNT)
-                name = ui->pedals_info[pedal_type].name;
-            else
-                name = "Invalid";
+            const char *name = synth_pedalchain_get(ui->synth, i).name;
 
             // Pedal name
             Vector2 text_size = MeasureTextEx(GuiGetFont(), name, 14, 1);
@@ -153,12 +145,13 @@ void draw_pedal_panel(UIState *ui)
                 pedal_rect.x + pedal_rect.width - 25,
                 pedal_rect.y + 5,
                 20, 20};
-            
+
             if (GuiButton(remove_btn, "X") && !pedal_dropdown_active)
             {
                 synth_pedalchain_remove(ui->synth, i);
-                // Reset drag state
-                if (ui->is_dragging) {
+                // Reset drag/click state
+                if (ui->is_dragging)
+                {
                     ui->is_dragging = false;
                     ui->dragging_pedal_idx = -1;
                 }
@@ -170,42 +163,33 @@ void draw_pedal_panel(UIState *ui)
             if (i < chain_size - 1 && !is_this_dragging)
             {
                 Vector2 arrow_start = {
-                    original_pedal_rect.x + original_pedal_rect.width / 2, 
-                    original_pedal_rect.y + original_pedal_rect.height
-                };
+                    original_pedal_rect.x + original_pedal_rect.width / 2,
+                    original_pedal_rect.y + original_pedal_rect.height};
                 Vector2 arrow_end = {
-                    original_pedal_rect.x + original_pedal_rect.width / 2, 
-                    original_pedal_rect.y + original_pedal_rect.height + spacing
-                };
-                
+                    original_pedal_rect.x + original_pedal_rect.width / 2,
+                    original_pedal_rect.y + original_pedal_rect.height + spacing};
+
                 DrawLineV(arrow_start, arrow_end, GetColor(GuiGetStyle(DEFAULT, TEXT_COLOR_PRESSED)));
-                
-                // Draw arrow head
-                DrawTriangle(
-                    (Vector2){arrow_end.x, arrow_end.y + 5},
-                    (Vector2){arrow_end.x - 4, arrow_end.y - 2},
-                    (Vector2){arrow_end.x + 4, arrow_end.y - 2},
-                    GetColor(GuiGetStyle(DEFAULT, TEXT_COLOR_NORMAL)));
             }
 
             // Handle mouse interaction for dragging (exclude remove button area)
             if (!ui->is_dragging && !pedal_dropdown_active)
             {
                 Vector2 mouse_pos = GetMousePosition();
-                
+
                 // Create draggable area (exclude remove button)
                 Rectangle drag_area = {
                     pedal_rect.x,
                     pedal_rect.y,
                     pedal_rect.width - 30, // Exclude remove button area
-                    pedal_rect.height
-                };
-                
-                if (CheckCollisionPointRec(mouse_pos, drag_area) && 
+                    pedal_rect.height};
+
+                if (CheckCollisionPointRec(mouse_pos, drag_area) &&
                     IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
                 {
                     ui->is_dragging = true;
                     ui->dragging_pedal_idx = i;
+                    ui->clicking_pedal_idx = i;
                     ui->drag_offset.y = pedal_rect.y - mouse_pos.y;
                     printf("Started dragging pedal %zu\n", i); // Debug
                 }
@@ -217,7 +201,7 @@ void draw_pedal_panel(UIState *ui)
         {
             Vector2 mouse_pos = GetMousePosition();
             int drop_idx = -1;
-            
+
             printf("Drag released at mouse pos: %.1f, %.1f\n", mouse_pos.x, mouse_pos.y); // Debug
 
             // Find which position to drop at
@@ -228,12 +212,10 @@ void draw_pedal_panel(UIState *ui)
 
                 float target_y = chain_start_y + i * (pedal_height + spacing);
                 Rectangle target_rect = {
-                    panel_area.x + 15, 
-                    target_y, 
-                    pedal_width, 
-                    pedal_height
-                };
-
+                    panel_area.x + 15,
+                    target_y,
+                    pedal_width,
+                    pedal_height};
 
                 if (CheckCollisionPointRec(mouse_pos, target_rect))
                 {
@@ -242,12 +224,12 @@ void draw_pedal_panel(UIState *ui)
                 }
             }
 
-            printf("Drop index: %d, dragging index: %d\n", drop_idx, ui->dragging_pedal_idx); 
+            printf("Drop index: %d, dragging index: %d\n", drop_idx, ui->dragging_pedal_idx);
 
             // Perform swap if valid drop target
             if (drop_idx >= 0 && drop_idx != ui->dragging_pedal_idx)
             {
-                printf("Swapping pedals %d and %d\n", ui->dragging_pedal_idx, drop_idx); 
+                printf("Swapping pedals %d and %d\n", ui->dragging_pedal_idx, drop_idx);
                 synth_pedalchain_swap(ui->synth, ui->dragging_pedal_idx, drop_idx);
             }
 

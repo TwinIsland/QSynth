@@ -6,7 +6,7 @@
 
 void draw_stats_panel(UIState *ui)
 {
-    Rectangle stats_area = {470, 270, 450, 200};
+    Rectangle stats_area = {470, 270, 450, 210};
 
     // Background
     GuiGroupBox(stats_area, "Synthesizer Statistics");

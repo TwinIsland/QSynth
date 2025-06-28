@@ -86,6 +86,7 @@ int main()
     ui.selected_pedal_type = PEDAL_REVERB;
     ui.dragging_pedal_idx = -1;
     ui.is_dragging = false;
+    ui.clicking_pedal_idx = -1;  // No pedal selected initially
 
     ui.visualStyleActive = 4;
     ui.prevVisualStyleActive = 0;
@@ -93,7 +94,7 @@ int main()
     // Initialize all pedal assets
     for (int i = 0; i < (int)PEDAL_COUNT; ++i)
     {
-        ui.pedals_info[i] = synth_pedal_info(ui.synth, (PedalType)i);
+        ui.pedals_info[i] = synth_pedal_info((PedalType)i);
     }
 
     for (int i = 0; i < 256; i++)
@@ -140,6 +141,7 @@ int main()
         draw_piano_keyboard(&ui);
         draw_status_bar(&ui);
         draw_pedal_panel(&ui);
+        draw_pedal_adj_panel(&ui);
         draw_help_window(&ui);
         draw_credit_window(&ui);
 

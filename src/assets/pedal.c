@@ -12,19 +12,32 @@
 
 static const PedalConfig pedal_info_db[PEDAL_COUNT] = {
     [PEDAL_REVERB] = {
-        .name = "Reverb",
-        .category = "Spatial",
-        .description = "Digital reverb effect with room simulation",
-        .param_n = 5,
-        .param_description = {
-            [0] = "Room Size (0.0-1.0)",
-            [1] = "Decay Time (0.1-10.0 seconds)",
-            [2] = "Damping (0.0-1.0)",
-            [3] = "Wet/Dry Mix (0.0-1.0)",
-            [4] = "Pre-delay (0-100ms)",
-            [5] = "Output Level (0.0-2.0)",
+        .info = {
+            .name = "Reverb",
+            .description = "Digital reverb effect with room simulation",
+            .param_count = 6,
+            .params = {
+                [0] = {
+                    .name = "Room Size",
+                    .min_value = 0.0,
+                    .max_value = 1.0,
+                    .default_value = 1.0,
+                    .unit = "",
+                }, //
+                [1] = {.name = "Decay Time", .min_value = 0.1, .max_value = 10.0, .default_value = 0.8, .unit = "s"},
+                [2] = {.name = "Damping", .min_value = 0.0, .max_value = 1.0, .default_value = 0.1, .unit = ""},
+                [3] = {.name = "Wet/Dry Mix", .min_value = 0.0, .max_value = 1.0, .default_value = 0.8, .unit = ""},
+                [4] = {.name = "Pre-delay", .min_value = 0.0, .max_value = 100.0, .default_value = 50.0, .unit = "ms"},
+                [5] = {
+                    .name = "Output Level",
+                    .min_value = 0.0,
+                    .max_value = 2.0,
+                    .default_value = 0.5,
+                    .unit = "",
+                },
+            },
+
         },
-        .param_default = {[0] = 1.0, [1] = 0.8, [2] = 0.1, [3] = 0.8, [4] = 50.0, [5] = 0.5},
         .vtable = {
             .pedal_create = reverb_create,
             .pedal_destroy = reverb_destroy,
@@ -34,23 +47,16 @@ static const PedalConfig pedal_info_db[PEDAL_COUNT] = {
     },
 
     [PEDAL_DISTORTION] = {
-        .name = "Overdrive",
-        .category = "Distortion",
-        .description = "Warm overdrive with tone control and asymmetric clipping",
-        .param_description = {
-            [0] = "Gain (1.0-20.0)",
-            [1] = "Drive (0.0-1.0)",
-            [2] = "Tone (0.0-1.0)",
-            [3] = "Output Level (0.0-2.0)",
-            [4] = "Asymmetry (0.0-1.0)",
-            [5] = NULL,
-        },
-        .param_default = {
-            [0] = 3.0, // 3x gain
-            [1] = 0.6, // 60% drive
-            [2] = 0.7, // Bright tone
-            [3] = 0.8, // 80% output
-            [4] = 0.3, // 30% asymmetry
+        .info = {
+            .name = "Overdrive",
+            .description = "Warm overdrive with tone control and asymmetric clipping",
+            .param_count = 5,
+            .params = {[0] = {.name = "Gain", .min_value = 1.0, .max_value = 20.0, .default_value = 3.0, .unit = "x"}, //
+                       [1] = {.name = "Drive", .min_value = 0.0, .max_value = 1.0, .default_value = 0.6, .unit = ""},
+                       [2] = {.name = "Tone", .min_value = 0.0, .max_value = 1.0, .default_value = 0.7, .unit = ""},
+                       [3] = {.name = "Output Level", .min_value = 0.0, .max_value = 2.0, .default_value = 0.8, .unit = ""},
+                       [4] = {.name = "Asymmetry", .min_value = 0.0, .max_value = 1.0, .default_value = 0.3, .unit = ""}},
+
         },
         .vtable = {
             .pedal_create = distortion_create,
@@ -61,23 +67,18 @@ static const PedalConfig pedal_info_db[PEDAL_COUNT] = {
     },
 
     [PEDAL_PHASER] = {
-        .name = "Phaser",
-        .category = "Modulation",
-        .description = "Classic phaser with sweeping allpass filters",
-        .param_description = {
-            [0] = "Rate (0.1-10 Hz)",
-            [1] = "Depth (0.0-1.0)",
-            [2] = "Feedback (0.0-0.9)",
-            [3] = "Wet/Dry Mix (0.0-1.0)",
-            [4] = "Center Freq (100-2000 Hz)",
-            [5] = NULL,
-        },
-        .param_default = {
-            [0] = 0.5,   // 0.5 Hz rate
-            [1] = 0.8,   // 80% depth
-            [2] = 0.6,   // 60% feedback
-            [3] = 0.5,   // 50% wet
-            [4] = 800.0, // 800 Hz center
+        .info = {
+            .name = "Phaser",
+            .description = "Classic phaser with sweeping allpass filters",
+            .param_count = 5,
+            .params = {
+                [0] = {.name = "Rate", .min_value = 0.1, .max_value = 10.0, .default_value = 0.5, .unit = "Hz"}, //
+                [1] = {.name = "Depth", .min_value = 0.0, .max_value = 1.0, .default_value = 0.8, .unit = ""},
+                [2] = {.name = "Feedback", .min_value = 0.0, .max_value = 0.9, .default_value = 0.6, .unit = ""},
+                [3] = {.name = "Wet/Dry Mix", .min_value = 0.0, .max_value = 1.0, .default_value = 0.5, .unit = ""},
+                [4] = {.name = "Center Freq", .min_value = 100.0, .max_value = 2000.0, .default_value = 800.0, .unit = "Hz"},
+            },
+
         },
         .vtable = {
             .pedal_create = phaser_create,
@@ -102,7 +103,11 @@ bool pedal_create(Pedal **pedal_ptr, PedalType type, double sample_rate)
     pedal->cfg = &pedal_info_db[type];
     pedal->bypass = false;
 
-    memcpy(pedal->params, pedal_info_db[type].param_default, sizeof(pedal_info_db[type].param_default));
+    // Initialize parameters with default_value values
+    for (int i = 0; i < pedal_info_db[type].info.param_count; i++)
+    {
+        pedal->params[i] = pedal_info_db[type].info.params[i].default_value;
+    }
 
     // Create instances for both channels
     if (!pedal->vtable.pedal_create(&pedal->pedal_instance_left, sample_rate) ||
@@ -133,7 +138,7 @@ void pedal_destroy(Pedal *pedal)
     free(pedal);
 }
 
-void pedal_set_param(Pedal *pedal, size_t param_idx, float param_val)
+void pedal_set_param(Pedal *pedal, size_t param_idx, double param_val)
 {
     pedal->params[param_idx] = param_val;
 

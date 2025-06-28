@@ -622,42 +622,109 @@ void synth_pedalchain_print(Synthesizer *synth)
     pedal_chain_print(synth->pedalchain);
 }
 
-PedalType synth_pedalchain_get(Synthesizer *synth, int idx)
+PedalInfo synth_pedal_info(PedalType pedal)
+{
+    const PedalConfig *cfg = pedal_get_cfg(pedal);
+    PedalInfo info = {0};
+
+    strncpy(info.name, cfg->info.name, sizeof(info.name) - 1);
+    strncpy(info.description, cfg->info.description, sizeof(info.description) - 1);
+    info.param_count = cfg->info.param_count;
+
+    for (int i = 0; i < cfg->info.param_count && i < PEDAL_MAX_PARAMS; i++)
+    {
+        strncpy(info.params[i].name, cfg->info.params[i].name, sizeof(info.params[i].name) - 1);
+        info.params[i].min_value = cfg->info.params[i].min_value;
+        info.params[i].max_value = cfg->info.params[i].max_value;
+        info.params[i].default_value = cfg->info.params[i].default_value;
+        strncpy(info.params[i].unit, cfg->info.params[i].unit, sizeof(info.params[i].unit) - 1);
+    }
+
+    return info;
+}
+
+PedalInfo synth_pedalchain_get(Synthesizer *synth, int idx)
 {
     if (!synth || !synth->pedalchain)
     {
         set_error(QSYNTH_ERROR_UNINIT);
         printf("pedalchain print failed due to uninitialized\n");
-        return -1;
+        return (PedalInfo){0};
     }
+
     PedalNode *node = pedal_chain_get(synth->pedalchain, idx);
     if (!node)
     {
-        return -1;
+        return (PedalInfo){0};
     }
-    return node->pedal->type;
+
+    PedalInfo info = synth_pedal_info(node->pedal->type);
+    
+    for (int i = 0; i < info.param_count; ++i) {
+        info.params[i].current_value = node->pedal->params[i];
+    }
+    return info;
 }
 
-PedalInfo synth_pedal_info(Synthesizer *synth, PedalType pedal)
+void synth_pedalchain_set(Synthesizer *synth, int idx, int param_idx, double new_param)
 {
     if (!synth || !synth->pedalchain)
     {
         set_error(QSYNTH_ERROR_UNINIT);
         printf("pedalchain print failed due to uninitialized\n");
-        return (PedalInfo){.name = "unknown"};
+        return;
     }
-    const PedalConfig *cfg = pedal_get_cfg(pedal);
-    PedalInfo info = (PedalInfo){
-        .category = cfg->category,
-        .description = cfg->description,
-        .name = cfg->name,
-        .param_n = cfg->param_n,
-    };
 
-    memcpy(info.param_default, cfg->param_default, sizeof(info.param_default));
-    memcpy(info.param_description, cfg->param_description, sizeof(info.param_description));
+    PedalNode *target = pedal_chain_get(synth->pedalchain, idx);
 
-    return info;
+    if (!target)
+    {
+        printf("set pedalchain parameter failed due to index out of range\n");
+        return;
+    }
+
+    pedal_set_param(target->pedal, param_idx, new_param);
+}
+
+void synth_pedalchain_set_bypass(Synthesizer *synth, int idx, bool bypass)
+{
+    if (!synth || !synth->pedalchain)
+    {
+        set_error(QSYNTH_ERROR_UNINIT);
+        printf("pedalchain print failed due to uninitialized\n");
+        return;
+    }
+
+    PedalNode *target = pedal_chain_get(synth->pedalchain, idx);
+
+    if (!target)
+    {
+        printf("set pedalchain parameter failed due to index out of range\n");
+        return;
+    }
+
+    target->pedal->bypass = bypass;
+    printf("set pedal bypass mode to: %s\n", bypass ? "bypass" : "active");
+}
+
+bool synth_pedalchain_is_bypass(Synthesizer *synth, int idx)
+{
+    if (!synth || !synth->pedalchain)
+    {
+        set_error(QSYNTH_ERROR_UNINIT);
+        printf("pedalchain print failed due to uninitialized\n");
+        return false;
+    }
+
+    PedalNode *target = pedal_chain_get(synth->pedalchain, idx);
+
+    if (!target)
+    {
+        printf("set pedalchain parameter failed due to index out of range\n");
+        return false;
+    }
+
+    return target->pedal->bypass;
 }
 
 double synth_set_master_volume(Synthesizer *synth, double volume)

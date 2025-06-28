@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #define PEDAL_MAX_PARAMS 12
+#define PEDALCHAIN_MAX_PEDAL 6
 
 typedef enum
 {
@@ -16,11 +17,18 @@ typedef enum
 
 typedef struct
 {
-    const char *name;
-    const char *category;
-    const char *description;
+    char name[64];        // Parameter name (e.g., "Gain", "Frequency")
+    double min_value;     // Minimum parameter value
+    double max_value;     // Maximum parameter value
+    double default_value; // Default parameter value
+    double current_value;
+    char unit[16];        // Unit string (e.g., "dB", "Hz", "%")
+} PedalParam;
 
-    double param_default[PEDAL_MAX_PARAMS];
-    char *param_description[PEDAL_MAX_PARAMS];
-    int param_n;
+typedef struct
+{
+    char name[64];                       // Pedal name
+    char description[256];               // Pedal description
+    int param_count;                     // Number of parameters
+    PedalParam params[PEDAL_MAX_PARAMS]; // Parameter array
 } PedalInfo;

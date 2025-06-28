@@ -6,7 +6,7 @@
 #include "raylib.h"
 
 // Constants
-#define WINDOW_WIDTH 1190
+#define WINDOW_WIDTH 1490
 #define WINDOW_HEIGHT 700
 #define WAVEFORM_SAMPLES 512
 
@@ -34,11 +34,13 @@ typedef struct
     int prevVisualStyleActive;
 
     // Pedal state
-    PedalInfo pedals_info[PEDAL_COUNT]; 
+    PedalInfo pedals_info[PEDAL_COUNT];
     int selected_pedal_type;
     int dragging_pedal_idx;
+    int clicking_pedal_idx;
     Vector2 drag_offset;
     bool is_dragging;
+
 } UIState;
 
 // Key mappings for piano keyboard
@@ -72,6 +74,7 @@ void draw_status_bar(UIState *ui);
 void draw_help_window(UIState *ui);
 void draw_credit_window(UIState *ui);
 void draw_pedal_panel(UIState *ui);
+void draw_pedal_adj_panel(UIState *ui);
 
 // Components update methods
 void update_waveform_visualization(UIState *ui);

@@ -160,6 +160,7 @@ bool build_ui(bool debug_build, bool x64_build, bool release_build)
     nob_cmd_append(&cmd, UI_FOLDER "rayguiImp.c");
     nob_cmd_append(&cmd, UI_FOLDER "controlPanel.c");
     nob_cmd_append(&cmd, UI_FOLDER "pedalPanel.c");
+    nob_cmd_append(&cmd, UI_FOLDER "pedalAdjPanel.c");
     nob_cmd_append(&cmd, UI_FOLDER "helpPanel.c");
     nob_cmd_append(&cmd, UI_FOLDER "creditPanel.c");
     nob_cmd_append(&cmd, UI_FOLDER "pianoPanel.c");
