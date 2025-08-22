@@ -3,6 +3,8 @@
 A high-performance multi-layered audio synthesizer written in C, featuring real-time audio processing with advanced instrument design capabilities.
 
 ## Demo
+> 🚀 Try it online: [QSynth Online](https://twinisland.github.io/QSynth/)
+> 
 ![](docs/demo.png)
 
 ## Features
