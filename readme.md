@@ -322,3 +322,62 @@ typedef struct {
 
 - **Windows**: MinGW-w64 or Visual Studio
 - **Linux**: GCC with pthread support
+
+
+## Wasm+Linux
+I'm too lazy to implement build script for Linux and Wasm, but the basic idea is:
+1. Download the static library from raylib release
+2. Extract libraylib.a to lib_linux_amd64/ (Linux) or lib_wasm/ (WebAssembly)
+3. Build:
+
+**Linux:**
+
+```
+gcc -Wall -Wextra -std=c99 -O3 -DNDEBUG \
+  -Iinclude -Isrc/audio -Iassets -Iui \
+  lib_linux_amd64/libraylib.a \
+  src/audio/miniaudio.c src/assets/pedal.c src/assets/instruments.c \
+  src/core/core.c src/core/voice.c src/envelope/adsr.c \
+  src/filters/biquad.c src/oscillators/oscillators.c \
+  src/utils/note_table.c src/pedals/reverb.c src/pedals/distortion.c \
+  src/pedals/phaser.c ui/ui.c ui/rayguiImp.c ui/controlPanel.c \
+  ui/pedalPanel.c ui/pedalAdjPanel.c ui/helpPanel.c ui/creditPanel.c \
+  ui/pianoPanel.c ui/statusBar.c ui/statusPanel.c ui/waveVisualizer.c \
+  ui/visualStyler.c ui/Qsynth.c \
+  -o build/QSynth \
+  -lm -lGL -lpthread -ldl -lrt -lX11
+```
+
+**WebAsm:**
+
+```
+emcc -Wall -Wextra -std=gnu99 -Os -DNDEBUG \
+  -Iinclude -Isrc/audio -Iassets -Iui \
+  lib_wasm/libraylib.a \
+  src/audio/miniaudio.c src/assets/pedal.c src/assets/instruments.c \
+  src/core/core.c src/core/voice.c src/envelope/adsr.c \
+  src/filters/biquad.c src/oscillators/oscillators.c \
+  src/utils/note_table.c src/pedals/reverb.c src/pedals/distortion.c \
+  src/pedals/phaser.c ui/ui.c ui/rayguiImp.c ui/controlPanel.c \
+  ui/pedalPanel.c ui/pedalAdjPanel.c ui/helpPanel.c ui/creditPanel.c \
+  ui/pianoPanel.c ui/statusBar.c ui/statusPanel.c ui/waveVisualizer.c \
+  ui/visualStyler.c ui/Qsynth.c \
+  -o build/QSynth.html \
+  -s USE_GLFW=3 -s ASYNCIFY -s ALLOW_MEMORY_GROWTH=1 \
+  --shell-file minishell.html -DPLATFORM_WEB
+```
+
+The Web version should be run with `Cross-Origin-Opener-Policy=same-origin`, you may start the server via running the python script below:
+```python
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+
+class CORSRequestHandler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header('Cross-Origin-Embedder-Policy', 'require-corp')
+        self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
+        super().end_headers()
+
+if __name__ == '__main__':
+    server = HTTPServer(('localhost', 8000), CORSRequestHandler)
+    server.serve_forever()
+```
