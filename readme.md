@@ -365,8 +365,13 @@ emcc -Wall -Wextra -std=gnu99 -Os -DNDEBUG \
   ui/pianoPanel.c ui/statusBar.c ui/statusPanel.c ui/waveVisualizer.c \
   ui/visualStyler.c ui/Qsynth.c \
   -o build/QSynth.html \
-  -s USE_GLFW=3 -s ASYNCIFY -s ALLOW_MEMORY_GROWTH=1 \
-  --shell-file minishell.html -DPLATFORM_WEB
+  -pthread \
+  -s USE_GLFW=3 \
+  -s ASYNCIFY \
+  -s PTHREAD_POOL_SIZE=24 \
+  -s INITIAL_MEMORY=134217728 \
+  --shell-file minishell.html \
+  -DPLATFORM_WEB
 ```
 
 The Web version should be run with `Cross-Origin-Opener-Policy=same-origin`, you may start the server via running the python script below:
